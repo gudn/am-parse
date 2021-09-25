@@ -1,5 +1,8 @@
 use wasm_bindgen::prelude::*;
 
+mod trie;
+mod tokens;
+
 #[wasm_bindgen]
 pub enum OutputFormat {
   Latex,
