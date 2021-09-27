@@ -9,6 +9,7 @@ pub enum OutputFormat {
 }
 
 #[wasm_bindgen]
-pub fn convert(_input: String, _output_format: OutputFormat) -> String {
+pub fn convert(input: String, _output_format: OutputFormat) -> String {
+  let _tokens = tokens::tokenize(&input);
   unimplemented!()
 }
