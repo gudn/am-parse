@@ -45,7 +45,7 @@ fn load_symbols_list() -> Trie<SymbolType> {
         "[operator]" => SymbolType::Operator,
         "[left_bracket]" => SymbolType::LeftBracket,
         "[right_bracket]" => SymbolType::RightBracket,
-        "[Delimiter]" => SymbolType::Delimiter,
+        "[delimiter]" => SymbolType::Delimiter,
         _ => SymbolType::Symbol,
       };
     } else {
