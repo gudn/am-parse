@@ -143,10 +143,45 @@ fn match_symbol(input: &mut InputWrapper, symbols: &Trie<SymbolType>) -> Option<
   }
 }
 
+struct Simplifier {
+  data: Vec<Token>,
+}
+
+impl Simplifier {
+  fn new() -> Simplifier {
+    Simplifier { data: Vec::new() }
+  }
+
+  fn push(&mut self, value: Token) {
+    match value {
+      Token::Whitespace => {
+        if let Some(Token::Whitespace) = self.data.last() {
+        } else {
+          self.data.push(value);
+        }
+      }
+      Token::Raw(c) => {
+        if let Some(Token::Raw(t)) = self.data.last_mut() {
+          t.push_str(&c);
+        } else {
+          self.data.push(Token::Raw(c));
+        }
+      }
+      _ => self.data.push(value),
+    }
+  }
+}
+
+impl From<Simplifier> for Vec<Token> {
+  fn from(value: Simplifier) -> Vec<Token> {
+    value.data
+  }
+}
+
 pub fn tokenize(input: &str) -> Vec<Token> {
   let symbols = load_symbols_list();
   let mut input = InputWrapper::new(input.trim().into());
-  let mut tokens = Vec::new();
+  let mut tokens = Simplifier::new();
   while let Some(c) = input.peek() {
     if let Some(token) = match_number(&mut input) {
       tokens.push(token);
@@ -154,10 +189,7 @@ pub fn tokenize(input: &str) -> Vec<Token> {
       tokens.push(token);
     } else if c.is_whitespace() {
       input.take().expect("expected space");
-      if let Some(Token::Whitespace) = tokens.last() {
-      } else {
-        tokens.push(Token::Whitespace);
-      }
+      tokens.push(Token::Whitespace);
     } else if c == '\\' {
       input.take().expect("expeted backslash");
       if let Some(c) = input.take() {
@@ -169,14 +201,14 @@ pub fn tokenize(input: &str) -> Vec<Token> {
       tokens.push(Token::Raw(input.take().expect("expected `c`").into()));
     }
   }
-  tokens
+  tokens.into()
 }
 
 #[cfg(test)]
 mod tests {
   use super::*;
 
-  fn raw(value: &'static str) -> Token {
+  fn raw(value: &str) -> Token {
     Token::Raw(value.into())
   }
 
@@ -215,16 +247,7 @@ mod tests {
     assert_eq!(match_number(&mut three_numbers), Some(raw(".223")));
     assert_eq!(three_numbers.take(), Some('a'));
     assert_eq!(three_numbers.take(), Some('b'));
-    assert_eq!(
-      tokenize(&input),
-      vec![
-        raw("123."),
-        raw("-32.3423"),
-        raw(".223"),
-        raw("a"),
-        raw("b")
-      ]
-    );
+    assert_eq!(tokenize(&input), vec![raw(&input)]);
   }
 
   #[test]
@@ -260,7 +283,6 @@ mod tests {
     assert_eq!(
       match_symbol(&mut some_symbols, &symbols),
       Some(Token::Function("root".into(), 2))
-
     );
     assert_eq!(
       match_symbol(&mut some_symbols, &symbols),
@@ -310,8 +332,7 @@ mod tests {
         Token::Whitespace,
         Token::Operator("=".into()),
         Token::Whitespace,
-        raw("2"),
-        raw("x"),
+        raw("2x"),
         Token::Whitespace,
         Token::Operator("+".into()),
         Token::Whitespace,
@@ -356,5 +377,22 @@ mod tests {
         raw("2"),
       ]
     )
+  }
+
+  #[test]
+  fn simplifier() {
+    let input = "abra   + 12r_0";
+    assert_eq!(
+      tokenize(&input),
+      vec![
+        raw("abra"),
+        Token::Whitespace,
+        Token::Operator("+".into()),
+        Token::Whitespace,
+        raw("12r"),
+        Token::Operator("_".into()),
+        raw("0")
+      ]
+    );
   }
 }
