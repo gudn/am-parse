@@ -2,6 +2,8 @@ use wasm_bindgen::prelude::*;
 
 mod trie;
 mod tokens;
+mod render;
+mod parse;
 
 #[wasm_bindgen]
 pub enum OutputFormat {
@@ -10,6 +12,7 @@ pub enum OutputFormat {
 
 #[wasm_bindgen]
 pub fn convert(input: String, _output_format: OutputFormat) -> String {
-  let _tokens = tokens::tokenize(&input);
+  let tokens = tokens::tokenize(&input);
+  let tree = parse::parse(tokens);
   unimplemented!()
 }

@@ -1,22 +1,9 @@
 use crate::trie::Trie;
 
+mod token;
 mod wrapper;
 use wrapper::InputWrapper;
-
-#[derive(PartialEq, Eq, Debug)]
-pub enum Token {
-  Raw(String),
-  Text(String),
-  Font(String),
-  LeftBracket(String),
-  RightBracket(String),
-  BracketFunction(String),
-  Function(String, u32),
-  Symbol(String),
-  Delimiter(String),
-  Operator(String),
-  Whitespace,
-}
+pub use token::Token;
 
 #[derive(Clone, Copy)]
 enum SymbolType {
@@ -28,6 +15,7 @@ enum SymbolType {
   Operator,
   LeftBracket,
   RightBracket,
+  Subsup,
 }
 
 fn load_symbols_list() -> Trie<SymbolType> {
@@ -46,6 +34,7 @@ fn load_symbols_list() -> Trie<SymbolType> {
         "[left_bracket]" => SymbolType::LeftBracket,
         "[right_bracket]" => SymbolType::RightBracket,
         "[delimiter]" => SymbolType::Delimiter,
+        "[subsup]" => SymbolType::Subsup,
         _ => SymbolType::Symbol,
       };
     } else {
@@ -137,6 +126,7 @@ fn match_symbol(input: &mut InputWrapper, symbols: &Trie<SymbolType>) -> Option<
       SymbolType::Symbol => Token::Symbol(buffer),
       SymbolType::Operator => Token::Operator(buffer),
       SymbolType::Delimiter => Token::Delimiter(buffer),
+      SymbolType::Subsup => Token::Subsup(buffer),
     })
   } else {
     None
@@ -348,17 +338,17 @@ mod tests {
       tokenize(input),
       vec![
         Token::Symbol("sum".into()),
-        Token::Operator("_".into()),
+        Token::Subsup("_".into()),
         Token::LeftBracket("(".into()),
         raw("i"),
         Token::Operator("=".into()),
         raw("1"),
         Token::RightBracket(")".into()),
-        Token::Operator("^".into()),
+        Token::Subsup("^".into()),
         raw("n"),
         Token::Whitespace,
         raw("i"),
-        Token::Operator("^".into()),
+        Token::Subsup("^".into()),
         raw("3"),
         Token::Operator("=".into()),
         Token::LeftBracket("(".into()),
@@ -373,7 +363,7 @@ mod tests {
         Token::Operator("/".into()),
         raw("2"),
         Token::RightBracket(")".into()),
-        Token::Operator("^".into()),
+        Token::Subsup("^".into()),
         raw("2"),
       ]
     )
@@ -390,7 +380,7 @@ mod tests {
         Token::Operator("+".into()),
         Token::Whitespace,
         raw("12r"),
-        Token::Operator("_".into()),
+        Token::Subsup("_".into()),
         raw("0")
       ]
     );
