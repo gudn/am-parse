@@ -7,15 +7,22 @@ fn flatten(seq: LinkedList<Expression>) -> LinkedList<Expression> {
   let mut result = LinkedList::new();
   for elem in seq {
     match elem {
-      Expression::Sequence(mut inner) => result.append(&mut inner),
+      Expression::Sequence(inner) => result.append(&mut flatten(inner)),
       elem => result.push_back(elem),
     }
   }
   result
 }
 
+fn skip_whitespace(seq: &mut LinkedList<Expression>) {
+  while let Some(Expression::Token(Token::Whitespace)) = seq.front() {
+    seq.pop_front();
+  }
+}
+
 #[derive(Debug, PartialEq, Eq)]
 pub enum Expression {
+  None,
   Sequence(LinkedList<Expression>),
   Token(Token),
   Raw(String),
@@ -27,6 +34,11 @@ pub enum Expression {
   Text {
     text: String,
     font: Option<String>,
+  },
+  Subsup {
+    base: Option<Box<Expression>>,
+    sup: Option<Box<Expression>>,
+    sub: Option<Box<Expression>>,
   },
 }
 
@@ -40,48 +52,39 @@ impl From<LinkedList<Expression>> for Expression {
 }
 
 impl Expression {
-  fn parse_next(seq: &mut LinkedList<Expression>) -> Option<Expression> {
-    let mut result = LinkedList::new();
-    while let Some(elem) = seq.pop_front() {
-      match elem {
-        Expression::Sequence(mut inner) => result.append(&mut inner),
+  /// Should return only one next item: function, subsup, fraction, bracket,
+  /// text. On Whitespace token return None
+  fn parse_one(seq: &mut LinkedList<Expression>) -> Option<Expression> {
+    if let Some(next) = seq.pop_front() {
+      match next {
         Expression::Token(token) => match token {
-          Token::Raw(text) => result.push_back(Expression::Raw(text)),
-          Token::Operator(text) => {
-            if text == "/" {
-              let numerator = if result.is_empty() {
-                None
-              } else {
-                Some(Box::new(result.into()))
-              };
-              if let Some(next) = Expression::parse_next(seq) {
-                return Some(Expression::Fraction {
-                  numerator,
-                  denominator: Some(Box::new(next)),
-                });
-              } else {
-                return Some(Expression::Fraction {
-                  numerator,
-                  denominator: None,
-                });
-              }
-            } else {
-              result.push_back(Expression::Symbol(text))
-            }
-          }
-          Token::Symbol(text) | Token::Delimiter(text) => {
-            result.push_back(Expression::Symbol(text))
-          }
-          Token::Text(text) => result.push_back(Expression::Text { text, font: None }),
+          Token::Raw(raw) => Some(Expression::Raw(raw)),
+          Token::Symbol(symbol) => Some(Expression::Symbol(symbol)),
+          Token::Delimiter(delimiter) => Some(Expression::Symbol(delimiter)),
+          Token::Text(text) => Some(Expression::Text { text, font: None }),
           Token::Font(font) => {
             let next = seq.pop_front();
             if let Some(Expression::Token(Token::Text(text))) = next {
-              result.push_back(Expression::Text {
+              Some(Expression::Text {
                 text,
                 font: Some(font),
-              });
+              })
             } else if let Some(next) = next {
-              seq.push_front(next)
+              seq.push_front(next);
+              None
+            } else {
+              None
+            }
+          }
+          Token::Operator(op) => {
+            if op == "/" {
+              skip_whitespace(seq);
+              Some(Expression::Fraction {
+                numerator: None,
+                denominator: Expression::parse_next(seq).map(Box::new),
+              })
+            } else {
+              Some(Expression::Symbol(op))
             }
           }
           Token::LeftBracket(_) => todo!(),
@@ -89,72 +92,60 @@ impl Expression {
           Token::BracketFunction(_) => todo!(),
           Token::Function(_, _) => todo!(),
           Token::Subsup(_) => todo!(),
-          Token::Whitespace => break,
+          Token::Whitespace => None,
         },
-        elem => result.push_back(elem),
+        expr => Some(expr),
+      }
+    } else {
+      None
+    }
+  }
+
+  /// Should parse one hunk (between spaces)
+  fn parse_next(seq: &mut LinkedList<Expression>) -> Option<Expression> {
+    let mut result = LinkedList::new();
+    while let Some(expr) = Expression::parse_one(seq) {
+      match expr {
+        Expression::Fraction {
+          numerator: None,
+          denominator,
+        } => {
+          let back = result.pop_back();
+          result.push_back(Expression::Fraction {
+            denominator,
+            numerator: back.map(Box::new),
+          })
+        }
+        expr => result.push_back(expr),
       }
     }
-    match result.len() {
-      0 => None,
-      1 => result.pop_front(),
-      _ => Some(Expression::Sequence(result)),
+    if result.is_empty() {
+      None
+    } else {
+      Some(result.into())
     }
   }
 
   fn parse_sequence(mut seq: LinkedList<Expression>) -> Expression {
     let mut result = LinkedList::new();
     while !seq.is_empty() {
-      if let Some(elem) = Expression::parse_next(&mut seq) {
-        let back = result.pop_back();
-        if let Some(Expression::Fraction {
-          denominator: None,
-          numerator,
-        }) = back
-        {
-          let frac = Expression::Fraction {
-            numerator,
-            denominator: Some(Box::new(elem)),
-          };
-          result.push_back(frac);
-          continue;
-        } else if let Some(back) = back {
-          result.push_back(back);
-        }
-        match elem {
+      if let Some(expr) = Expression::parse_next(&mut seq) {
+        match expr {
           Expression::Fraction {
-            numerator,
+            numerator: None,
             denominator,
           } => {
-            if numerator.is_none() {
-              let frac = Expression::Fraction {
-                numerator: if let Some(back) = result.pop_back() {
-                  if let Expression::Sequence(inner) = back {
-                    Some(Box::new(inner.into()))
-                  } else {
-                    Some(Box::new(back))
-                  }
-                } else {
-                  None
-                },
-                denominator,
-              };
-              result.push_back(frac);
-            } else {
-              result.push_back(Expression::Fraction {
-                numerator,
-                denominator,
-              })
-            }
+            let back = result.pop_back().or(Some(Expression::None));
+            result.push_back(Expression::Fraction {
+              denominator,
+              numerator: back.map(Box::new),
+            })
           }
-          elem => result.push_back(elem),
+          expr => result.push_back(expr),
         }
       }
     }
-    if result.len() == 1 {
-      result.pop_back().unwrap()
-    } else {
-      Expression::Sequence(flatten(result))
-    }
+    flatten(result).into()
   }
 
   fn parse(self) -> Expression {
@@ -241,7 +232,7 @@ mod tests {
       parse(tokenize("1 / 2bx")),
       frac(Some(raw("1")), Some(raw("2bx")))
     );
-    assert_eq!(parse(tokenize(" / 2bx")), frac(None, Some(raw("2bx"))));
+    assert_eq!(parse(tokenize(" / 2bx")), frac(Some(Expression::None), Some(raw("2bx"))));
     assert_eq!(
       parse(tokenize("1 + 1/2+1")),
       seq(vec![
