@@ -2,8 +2,8 @@ use crate::trie::Trie;
 
 mod token;
 mod wrapper;
-use wrapper::InputWrapper;
 pub use token::Token;
+use wrapper::InputWrapper;
 
 #[derive(Clone, Copy)]
 enum SymbolType {
@@ -150,13 +150,13 @@ impl Simplifier {
           self.data.push(value);
         }
       }
-      Token::Raw(c) => {
-        if let Some(Token::Raw(t)) = self.data.last_mut() {
-          t.push_str(&c);
-        } else {
-          self.data.push(Token::Raw(c));
-        }
-      }
+      // Token::Raw(c) => {
+      //   if let Some(Token::Raw(t)) = self.data.last_mut() {
+      //     t.push_str(&c);
+      //   } else {
+      //     self.data.push(Token::Raw(c));
+      //   }
+      // }
       _ => self.data.push(value),
     }
   }
@@ -237,7 +237,16 @@ mod tests {
     assert_eq!(match_number(&mut three_numbers), Some(raw(".223")));
     assert_eq!(three_numbers.take(), Some('a'));
     assert_eq!(three_numbers.take(), Some('b'));
-    assert_eq!(tokenize(&input), vec![raw(&input)]);
+    assert_eq!(
+      tokenize(&input),
+      vec![
+        raw("123."),
+        raw("-32.3423"),
+        raw(".223"),
+        raw("a"),
+        raw("b")
+      ]
+    );
   }
 
   #[test]
@@ -322,7 +331,8 @@ mod tests {
         Token::Whitespace,
         Token::Operator("=".into()),
         Token::Whitespace,
-        raw("2x"),
+        raw("2"),
+        raw("x"),
         Token::Whitespace,
         Token::Operator("+".into()),
         Token::Whitespace,
@@ -375,11 +385,15 @@ mod tests {
     assert_eq!(
       tokenize(&input),
       vec![
-        raw("abra"),
+        raw("a"),
+        raw("b"),
+        raw("r"),
+        raw("a"),
         Token::Whitespace,
         Token::Operator("+".into()),
         Token::Whitespace,
-        raw("12r"),
+        raw("12"),
+        raw("r"),
         Token::Subsup("_".into()),
         raw("0")
       ]

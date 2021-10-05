@@ -42,6 +42,11 @@ pub enum Expression {
     base: Option<Box<Expression>>,
     sup: Option<Box<Expression>>,
   },
+  Function {
+    func: String,
+    extra: Vec<Expression>,
+    args: Vec<Option<Expression>>,
+  },
 }
 
 impl From<LinkedList<Expression>> for Expression {
@@ -92,7 +97,37 @@ impl Expression {
           Token::LeftBracket(_) => todo!(),
           Token::RightBracket(_) => todo!(),
           Token::BracketFunction(_) => todo!(),
-          Token::Function(_, _) => todo!(),
+          Token::Function(func, argc) => {
+            let mut extra = Vec::new();
+            loop {
+              match seq.front() {
+                Some(&Expression::Token(ref token)) => match token {
+                  Token::Symbol(op) if op == "'" => {
+                    let next = Expression::parse_one(seq);
+                    if let Some(next) = next {
+                      extra.push(next);
+                    } else {
+                      break;
+                    }
+                  }
+                  Token::Subsup(_) => {
+                    let next = Expression::parse_one(seq);
+                    if let Some(next) = next {
+                      extra.push(next);
+                    } else {
+                      break;
+                    }
+                  }
+                  _ => break,
+                },
+                _ => break,
+              };
+            }
+            skip_whitespace(seq);
+            let args: Vec<Option<Expression>> =
+              (0..argc).map(|_| Expression::parse_next(seq)).collect();
+            Some(Expression::Function { func, args, extra })
+          }
           Token::Subsup(op) => {
             let next = if let Some(Expression::Token(Token::Whitespace)) = seq.front() {
               skip_whitespace(seq);
@@ -237,6 +272,14 @@ mod tests {
     Expression::Raw(value.into())
   }
 
+  fn sraw(value: &str) -> Option<Expression> {
+    Some(raw(value))
+  }
+
+  fn seqraw(value: Vec<&str>) -> Expression {
+    seq(value.into_iter().map(raw).collect())
+  }
+
   fn symbol(value: &str) -> Expression {
     Expression::Symbol(value.into())
   }
@@ -259,6 +302,22 @@ mod tests {
     Expression::Sup {
       base: base.map(Box::new),
       sup: sup.map(Box::new),
+    }
+  }
+
+  fn func(text: &str, args: Vec<Option<Expression>>) -> Expression {
+    Expression::Function {
+      func: text.into(),
+      extra: vec![],
+      args,
+    }
+  }
+
+  fn funce(text: &str, args: Vec<Option<Expression>>, extra: Vec<Expression>) -> Expression {
+    Expression::Function {
+      func: text.into(),
+      extra,
+      args,
     }
   }
 
@@ -293,33 +352,30 @@ mod tests {
   fn parse_fracs() {
     assert_eq!(
       parse(tokenize("1/ 2bx")),
-      frac(Some(raw("1")), Some(raw("2bx")))
+      frac(sraw("1"), Some(seqraw(vec!["2", "b", "x"])))
     );
     assert_eq!(
       parse(tokenize("1/2bx")),
-      frac(Some(raw("1")), Some(raw("2bx")))
+      frac(sraw("1"), Some(seqraw(vec!["2", "b", "x"])))
     );
     assert_eq!(
       parse(tokenize("1 /2bx")),
-      frac(Some(raw("1")), Some(raw("2bx")))
+      frac(sraw("1"), Some(seqraw(vec!["2", "b", "x"])))
     );
     assert_eq!(
       parse(tokenize("1 / 2bx")),
-      frac(Some(raw("1")), Some(raw("2bx")))
+      frac(sraw("1"), Some(seqraw(vec!["2", "b", "x"])))
     );
     assert_eq!(
       parse(tokenize(" / 2bx")),
-      frac(Some(Expression::None), Some(raw("2bx")))
+      frac(Some(Expression::None), Some(seqraw(vec!["2", "b", "x"])))
     );
     assert_eq!(
       parse(tokenize("1 + 1/2+1")),
       seq(vec![
         raw("1"),
         symbol("+"),
-        frac(
-          Some(raw("1")),
-          Some(seq(vec![raw("2"), symbol("+"), raw("1")]))
-        )
+        frac(sraw("1"), Some(seq(vec![raw("2"), symbol("+"), raw("1")])))
       ])
     )
   }
@@ -333,34 +389,96 @@ mod tests {
 
   #[test]
   fn parse_subsup() {
-    assert_eq!(parse(tokenize("1^2")), sup(Some(raw("1")), Some(raw("2"))));
-    assert_eq!(parse(tokenize("1_2")), sub(Some(raw("1")), Some(raw("2"))));
+    assert_eq!(parse(tokenize("1^2")), sup(sraw("1"), sraw("2")));
+    assert_eq!(parse(tokenize("1_2")), sub(sraw("1"), sraw("2")));
     assert_eq!(
       parse(tokenize("1_2^3")),
-      sup(Some(sub(Some(raw("1")), Some(raw("2")))), Some(raw("3")))
+      sup(Some(sub(sraw("1"), sraw("2"))), sraw("3"))
     );
     assert_eq!(
       parse(tokenize("1^2_3")),
-      sub(Some(sup(Some(raw("1")), Some(raw("2")))), Some(raw("3")))
+      sub(Some(sup(sraw("1"), sraw("2"))), sraw("3"))
     );
     assert_eq!(
       parse(tokenize("1^ 2+3")),
-      sup(
-        Some(raw("1")),
-        Some(seq(vec![raw("2"), symbol("+"), raw("3")]))
-      )
+      sup(sraw("1"), Some(seq(vec![raw("2"), symbol("+"), raw("3")])))
     );
     assert_eq!(
       parse(tokenize("1^2+3")),
-      seq(vec![
-        sup(Some(raw("1")), Some(raw("2"))),
-        symbol("+"),
-        raw("3")
-      ])
+      seq(vec![sup(sraw("1"), sraw("2")), symbol("+"), raw("3")])
     );
     assert_eq!(
       parse(tokenize("1/2^3")),
-      frac(Some(raw("1")), Some(sup(Some(raw("2")), Some(raw("3")))))
+      frac(sraw("1"), Some(sup(sraw("2"), sraw("3"))))
     );
+  }
+
+  #[test]
+  fn parse_function() {
+    assert_eq!(parse(tokenize("sinx")), func("sin", vec![sraw("x")]));
+    assert_eq!(
+      parse(tokenize("sin x+y")),
+      func(
+        "sin",
+        vec![Some(seq(vec![raw("x"), symbol("+"), raw("y")]))]
+      )
+    );
+    assert_eq!(
+      parse(tokenize("root3 x^2")),
+      func(
+        "root",
+        vec![Some(raw("3")), Some(sup(sraw("x"), sraw("2")))]
+      )
+    );
+    assert_eq!(
+      parse(tokenize("1+2 /sinx^2")),
+      frac(
+        Some(seq(vec![raw("1"), symbol("+"), raw("2")])),
+        Some(func("sin", vec![Some(sup(sraw("x"), sraw("2")))]))
+      )
+    );
+    assert_eq!(
+      parse(tokenize("sin'x = cosx")),
+      seq(vec![
+        funce("sin", vec![sraw("x")], vec![symbol("'")]),
+        symbol("="),
+        func("cos", vec![sraw("x")])
+      ])
+    );
+    assert_eq!(
+      parse(tokenize("cos2x = cos^2x - sin^2x")),
+      seq(vec![
+        func("cos", vec![Some(seqraw(vec!["2", "x"]))]),
+        symbol("="),
+        funce("cos", vec![sraw("x")], vec![sup(None, sraw("2"))]),
+        symbol("-"),
+        funce("sin", vec![sraw("x")], vec![sup(None, sraw("2"))]),
+      ]),
+    );
+    assert_eq!(
+      parse(tokenize("sin^2'x = sin 2x")),
+      seq(vec![
+        funce(
+          "sin",
+          vec![sraw("x")],
+          vec![sup(None, sraw("2")), symbol("'")]
+        ),
+        symbol("="),
+        func("sin", vec![Some(seqraw(vec!["2", "x"]))])
+      ])
+    );
+    assert_eq!(
+      parse(tokenize("lcm_2 12 20 = 4")),
+      seq(vec![
+        funce(
+          "lcm",
+          vec![sraw("12"), sraw("20")],
+          vec![sub(None, sraw("2"))]
+        ),
+        symbol("="),
+        raw("4")
+      ])
+    );
+    assert_eq!(parse(tokenize("gcd")), func("gcd", vec![None, None]));
   }
 }
