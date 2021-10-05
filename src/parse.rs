@@ -1,6 +1,5 @@
 use std::collections::LinkedList;
 
-use crate::render::Render;
 use crate::tokens::Token;
 
 fn flatten(seq: LinkedList<Expression>) -> LinkedList<Expression> {
@@ -35,10 +34,13 @@ pub enum Expression {
     text: String,
     font: Option<String>,
   },
-  Subsup {
+  Sub {
+    base: Option<Box<Expression>>,
+    sub: Option<Box<Expression>>,
+  },
+  Sup {
     base: Option<Box<Expression>>,
     sup: Option<Box<Expression>>,
-    sub: Option<Box<Expression>>,
   },
 }
 
@@ -91,7 +93,25 @@ impl Expression {
           Token::RightBracket(_) => todo!(),
           Token::BracketFunction(_) => todo!(),
           Token::Function(_, _) => todo!(),
-          Token::Subsup(_) => todo!(),
+          Token::Subsup(op) => {
+            let next = if let Some(Expression::Token(Token::Whitespace)) = seq.front() {
+              skip_whitespace(seq);
+              Expression::parse_next(seq).map(Box::new)
+            } else {
+              Expression::parse_one(seq).map(Box::new)
+            };
+            if op == "_" {
+              Some(Expression::Sub {
+                base: None,
+                sub: next,
+              })
+            } else {
+              Some(Expression::Sup {
+                base: None,
+                sup: next,
+              })
+            }
+          }
           Token::Whitespace => None,
         },
         expr => Some(expr),
@@ -114,6 +134,20 @@ impl Expression {
           result.push_back(Expression::Fraction {
             denominator,
             numerator: back.map(Box::new),
+          })
+        }
+        Expression::Sub { base: None, sub } => {
+          let back = result.pop_back();
+          result.push_back(Expression::Sub {
+            base: back.map(Box::new),
+            sub,
+          })
+        }
+        Expression::Sup { base: None, sup } => {
+          let back = result.pop_back();
+          result.push_back(Expression::Sup {
+            base: back.map(Box::new),
+            sup,
           })
         }
         expr => result.push_back(expr),
@@ -141,6 +175,39 @@ impl Expression {
               numerator: back.map(Box::new),
             })
           }
+          Expression::Sub { base: None, sub } => {
+            let back = result.pop_back().or(Some(Expression::None));
+            result.push_back(Expression::Sub {
+              base: back.map(Box::new),
+              sub,
+            })
+          }
+          Expression::Sup { base: None, sup } => {
+            let back = result.pop_back().or(Some(Expression::None));
+            result.push_back(Expression::Sup {
+              base: back.map(Box::new),
+              sup,
+            })
+          }
+          Expression::Sequence(mut inner) => {
+            let front = inner.pop_front();
+            if let Some(Expression::Sub { base: None, sub }) = front {
+              let back = result.pop_back().or(Some(Expression::None));
+              inner.push_front(Expression::Sub {
+                base: back.map(Box::new),
+                sub,
+              });
+            } else if let Some(Expression::Sup { base: None, sup }) = front {
+              let back = result.pop_back().or(Some(Expression::None));
+              inner.push_front(Expression::Sup {
+                base: back.map(Box::new),
+                sup,
+              });
+            } else if let Some(front) = front {
+              inner.push_front(front);
+            }
+            result.push_back(inner.into())
+          }
           expr => result.push_back(expr),
         }
       }
@@ -153,12 +220,6 @@ impl Expression {
       Expression::Sequence(seq) => Expression::parse_sequence(seq),
       elem => elem,
     }
-  }
-}
-
-impl Render for Expression {
-  fn render(&self, _: crate::OutputFormat) -> String {
-    unimplemented!()
   }
 }
 
@@ -184,6 +245,20 @@ mod tests {
     Expression::Fraction {
       numerator: numerator.map(Box::new),
       denominator: denominator.map(Box::new),
+    }
+  }
+
+  fn sub(base: Option<Expression>, sub: Option<Expression>) -> Expression {
+    Expression::Sub {
+      base: base.map(Box::new),
+      sub: sub.map(Box::new),
+    }
+  }
+
+  fn sup(base: Option<Expression>, sup: Option<Expression>) -> Expression {
+    Expression::Sup {
+      base: base.map(Box::new),
+      sup: sup.map(Box::new),
     }
   }
 
@@ -232,7 +307,10 @@ mod tests {
       parse(tokenize("1 / 2bx")),
       frac(Some(raw("1")), Some(raw("2bx")))
     );
-    assert_eq!(parse(tokenize(" / 2bx")), frac(Some(Expression::None), Some(raw("2bx"))));
+    assert_eq!(
+      parse(tokenize(" / 2bx")),
+      frac(Some(Expression::None), Some(raw("2bx")))
+    );
     assert_eq!(
       parse(tokenize("1 + 1/2+1")),
       seq(vec![
@@ -251,5 +329,38 @@ mod tests {
     assert_eq!(parse(tokenize(r#" "hello""#)), text("hello", None));
     assert_eq!(parse(tokenize(r#"bb"hello""#)), text("hello", Some("bb")));
     assert_eq!(parse(tokenize(r#"bb "hello""#)), text("hello", None),);
+  }
+
+  #[test]
+  fn parse_subsup() {
+    assert_eq!(parse(tokenize("1^2")), sup(Some(raw("1")), Some(raw("2"))));
+    assert_eq!(parse(tokenize("1_2")), sub(Some(raw("1")), Some(raw("2"))));
+    assert_eq!(
+      parse(tokenize("1_2^3")),
+      sup(Some(sub(Some(raw("1")), Some(raw("2")))), Some(raw("3")))
+    );
+    assert_eq!(
+      parse(tokenize("1^2_3")),
+      sub(Some(sup(Some(raw("1")), Some(raw("2")))), Some(raw("3")))
+    );
+    assert_eq!(
+      parse(tokenize("1^ 2+3")),
+      sup(
+        Some(raw("1")),
+        Some(seq(vec![raw("2"), symbol("+"), raw("3")]))
+      )
+    );
+    assert_eq!(
+      parse(tokenize("1^2+3")),
+      seq(vec![
+        sup(Some(raw("1")), Some(raw("2"))),
+        symbol("+"),
+        raw("3")
+      ])
+    );
+    assert_eq!(
+      parse(tokenize("1/2^3")),
+      frac(Some(raw("1")), Some(sup(Some(raw("2")), Some(raw("3")))))
+    );
   }
 }

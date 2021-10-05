@@ -35,10 +35,6 @@ impl InputWrapper {
       None
     }
   }
-
-  pub fn is_empty(&self) -> bool {
-    self.pos >= self.data.len()
-  }
 }
 
 #[cfg(test)]
