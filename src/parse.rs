@@ -47,6 +47,16 @@ pub enum Expression {
     extra: Vec<Expression>,
     args: Vec<Option<Expression>>,
   },
+  Bracketed {
+    left: String,
+    right: Option<String>,
+    inner: Box<Expression>,
+  },
+  Matrix {
+    left: String,
+    right: Option<String>,
+    items: Vec<Vec<Expression>>,
+  },
 }
 
 impl From<LinkedList<Expression>> for Expression {
@@ -94,8 +104,67 @@ impl Expression {
               Some(Expression::Symbol(op))
             }
           }
-          Token::LeftBracket(_) => todo!(),
-          Token::RightBracket(_) => todo!(),
+          Token::LeftBracket(left) => {
+            let mut level = 1;
+            let mut items: Vec<Vec<Expression>> = vec![vec![]];
+            let mut current = Vec::new();
+            let mut right = None;
+            while !seq.is_empty() && level > 0 {
+              let item = seq.pop_front().unwrap();
+              match item {
+                Expression::Token(token) => match token {
+                  Token::LeftBracket(l) => {
+                    level += 1;
+                    current.push(Expression::Token(Token::LeftBracket(l)));
+                  }
+                  Token::RightBracket(r) => {
+                    level -= 1;
+                    if level == 0 {
+                      right = Some(r);
+                    } else {
+                      current.push(Expression::Token(Token::RightBracket(r)));
+                    }
+                  }
+                  Token::Delimiter(delim) => {
+                    if level == 1 && delim == ";" {
+                      if !current.is_empty() {
+                        items
+                          .last_mut()
+                          .unwrap()
+                          .push(Expression::Sequence(current.drain(..).collect()));
+                      }
+                      if !items.last().map_or(true, Vec::is_empty) {
+                        items.push(vec![]);
+                      }
+                    } else if level == 1 && delim == "," {
+                      if !current.is_empty() {
+                        items
+                          .last_mut()
+                          .unwrap()
+                          .push(Expression::Sequence(current.drain(..).collect()));
+                      } else {
+                        items.last_mut().unwrap().push(Expression::None);
+                      }
+                    } else {
+                      current.push(Expression::Token(Token::Delimiter(delim)))
+                    }
+                  }
+                  _ => current.push(Expression::Token(token)),
+                },
+                _ => current.push(item),
+              }
+            }
+            if !current.is_empty() {
+              items
+                .last_mut()
+                .unwrap()
+                .push(Expression::Sequence(current.into_iter().collect()));
+            } else if items.last().map_or(false, Vec::is_empty) {
+              items.pop();
+            }
+            Expression::parse_brackets(left, right, items)
+          }
+          Token::RightBracket(_) => Expression::parse_one(seq),
           Token::BracketFunction(_) => todo!(),
           Token::Function(func, argc) => {
             let mut extra = Vec::new();
@@ -250,6 +319,54 @@ impl Expression {
     flatten(result).into()
   }
 
+  fn parse_brackets(
+    left: String,
+    right: Option<String>,
+    mut items: Vec<Vec<Expression>>,
+  ) -> Option<Expression> {
+    match items.len() {
+      0 => Some(Expression::Bracketed {
+        left,
+        right,
+        inner: Box::new(Expression::None),
+      }),
+      1 => match items[0].len() {
+        0 => Some(Expression::Bracketed {
+          left,
+          right,
+          inner: Box::new(Expression::None),
+        }),
+        _ => {
+          let mut inner = LinkedList::new();
+          for elem in items[0].drain(..) {
+            match elem {
+              Expression::Sequence(mut seq) => inner.append(&mut seq),
+              elem => inner.push_back(elem),
+            }
+            inner.push_back(Expression::Symbol(",".into()));
+          }
+          inner.pop_back();
+          Some(Expression::Bracketed {
+            left,
+            right,
+            inner: Box::new(Expression::from(inner).parse()),
+          })
+        }
+      },
+      _ => {
+        let inner = items
+          .into_iter()
+          .map(|row| row.into_iter().map(Expression::parse).collect())
+          .collect();
+        Some(Expression::Matrix {
+          left,
+          right,
+          items: inner,
+        })
+      }
+    }
+  }
+
   fn parse(self) -> Expression {
     match self {
       Expression::Sequence(seq) => Expression::parse_sequence(seq),
@@ -336,20 +453,19 @@ mod tests {
     parse(tokenize(input))
   }
 
+  fn bracketed(left: &str, right: Option<&str>, inner: Expression) -> Expression {
+    Expression::Bracketed {
+      left: left.into(),
+      right: right.map(String::from),
+      inner: Box::new(inner),
+    }
+  }
+
   #[test]
   fn parse_one_plus_one() {
-    assert_eq!(
-      ptok("1 + 1"),
-      seq(vec![raw("1"), symbol("+"), raw("1")])
-    );
-    assert_eq!(
-      ptok("1+ 1"),
-      seq(vec![raw("1"), symbol("+"), raw("1")])
-    );
-    assert_eq!(
-      ptok("1+1"),
-      seq(vec![raw("1"), symbol("+"), raw("1")])
-    );
+    assert_eq!(ptok("1 + 1"), seq(vec![raw("1"), symbol("+"), raw("1")]));
+    assert_eq!(ptok("1+ 1"), seq(vec![raw("1"), symbol("+"), raw("1")]));
+    assert_eq!(ptok("1+1"), seq(vec![raw("1"), symbol("+"), raw("1")]));
   }
 
   #[test]
@@ -484,5 +600,75 @@ mod tests {
       ])
     );
     assert_eq!(ptok("gcd"), func("gcd", vec![None, None]));
+  }
+
+  #[test]
+  fn parse_bracketed() {
+    assert_eq!(
+      ptok("(a + b)"),
+      bracketed("(", Some(")"), seq(vec![raw("a"), symbol("+"), raw("b")]))
+    );
+    assert_eq!(
+      ptok("(1/2"),
+      bracketed("(", None, frac(sraw("1"), sraw("2")))
+    );
+    assert_eq!(
+      ptok("[1, 2, 3]"),
+      bracketed(
+        "[",
+        Some("]"),
+        seq(vec![raw("1"), symbol(","), raw("2"), symbol(","), raw("3")])
+      )
+    );
+    assert_eq!(
+      ptok("sin (2x + 1"),
+      func(
+        "sin",
+        vec![Some(bracketed(
+          "(",
+          None,
+          seq(vec![raw("2"), raw("x"), symbol("+"), raw("1")])
+        ))]
+      )
+    );
+    assert_eq!(
+      ptok("(1;2)"),
+      Expression::Matrix {
+        left: "(".into(),
+        right: Some(")".into()),
+        items: vec![vec![raw("1")], vec![raw("2")]]
+      }
+    );
+    assert_eq!(
+      ptok("1^(2+1)"),
+      sup(
+        sraw("1"),
+        Some(bracketed(
+          "(",
+          Some(")"),
+          seq(vec![raw("2"), symbol("+"), raw("1")])
+        ))
+      )
+    );
+    assert_eq!(
+      ptok("(1;(2;3,4"),
+      Expression::Matrix {
+        left: "(".into(),
+        right: None,
+        items: vec![
+          vec![raw("1")],
+          vec![
+            Expression::Matrix {
+              left: "(".into(),
+              right: None,
+              items: vec![
+                vec![raw("2")],
+                vec![raw("3"), raw("4")],
+              ]
+            }
+          ]
+        ]
+      }
+    )
   }
 }

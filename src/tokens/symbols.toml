@@ -13,7 +13,6 @@
 [delimiter]
 ;
 ,
-:
 [font]
 bb
 bbb
@@ -190,5 +189,6 @@ larr
 rArr
 lArr
 ->
+:
 :'
 '
