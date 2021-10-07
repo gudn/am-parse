@@ -418,7 +418,7 @@ impl Expression {
         _ => {
           let mut inner = LinkedList::new();
           for elem in items[0].drain(..) {
-            match elem {
+            match elem.parse() {
               Expression::Sequence(mut seq) => inner.append(&mut seq),
               elem => inner.push_back(elem),
             }
@@ -529,7 +529,7 @@ mod tests {
   }
 
   fn ptok(input: &str) -> Expression {
-    parse(tokenize(input))
+    parse(tokenize(input, vec![]))
   }
 
   fn bracketed(left: &str, right: Option<&str>, inner: Expression) -> Expression {
@@ -817,5 +817,30 @@ mod tests {
         )
       ])
     );
+  }
+
+  #[test]
+  fn parse_simple_expression() {
+    let f = |inner| Some(bracketed("(", Some(")"), inner));
+    assert_eq!(
+      parse(tokenize(
+        "f(x) = sinx ; f'(x) = cosx ; f''(x) = -sinx",
+        vec!["f"]
+      )),
+      seq(vec![
+        func("f", vec![f(raw("x"))]),
+        symbol("="),
+        func("sin", vec![sraw("x")]),
+        symbol(";"),
+        funce("f", vec![f(raw("x"))], vec![symbol("'")]),
+        symbol("="),
+        func("cos", vec![sraw("x")]),
+        symbol(";"),
+        funce("f", vec![f(raw("x"))], vec![symbol("'"), symbol("'")]),
+        symbol("="),
+        symbol("-"),
+        func("sin", vec![sraw("x")]),
+      ])
+    )
   }
 }

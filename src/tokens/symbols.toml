@@ -4,12 +4,14 @@
 {
 (:
 {:
+|:
 [right_bracket]
 )
 ]
 }
 :)
 :}
+:|
 [delimiter]
 ;
 ,

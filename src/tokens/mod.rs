@@ -168,8 +168,11 @@ impl From<Simplifier> for Vec<Token> {
   }
 }
 
-pub fn tokenize(input: &str) -> Vec<Token> {
-  let symbols = load_symbols_list();
+pub fn tokenize(input: &str, brackets_functions: Vec<&str>) -> Vec<Token> {
+  let mut symbols = load_symbols_list();
+  for func in brackets_functions {
+    symbols.insert(func, SymbolType::BracketFunction);
+  }
   let mut input = InputWrapper::new(input.trim().into());
   let mut tokens = Simplifier::new();
   while let Some(c) = input.peek() {
@@ -238,7 +241,7 @@ mod tests {
     assert_eq!(three_numbers.take(), Some('a'));
     assert_eq!(three_numbers.take(), Some('b'));
     assert_eq!(
-      tokenize(&input),
+      tokenize(&input, vec![]),
       vec![
         raw("123."),
         raw("-32.3423"),
@@ -260,7 +263,7 @@ mod tests {
     assert_eq!(some_string.take(), Some(' '));
     assert_eq!(match_text(&mut some_string), Some(text("some")));
     assert_eq!(
-      tokenize(&input),
+      tokenize(&input, vec![]),
       vec![text("abra 123 arba"), Token::Whitespace, text("some"),]
     );
   }
@@ -303,7 +306,7 @@ mod tests {
     assert_eq!(some_symbols.take(), Some('\\'));
     assert_eq!(some_symbols.take(), Some(')'));
     assert_eq!(
-      tokenize(&input),
+      tokenize(&input, vec![]),
       vec![
         Token::Function("sin".into(), 1),
         Token::Function("cos".into(), 1),
@@ -322,7 +325,7 @@ mod tests {
   fn tokenize_function_definition() {
     let input = "f(x) = 2x + 1";
     assert_eq!(
-      tokenize(input),
+      tokenize(input, vec![]),
       vec![
         raw("f"),
         Token::LeftBracket("(".into()),
@@ -345,7 +348,7 @@ mod tests {
   fn tokenize_complex_expression() {
     let input = "sum_(i=1)^n i^3=((n(n+1))/2)^2";
     assert_eq!(
-      tokenize(input),
+      tokenize(input, vec![]),
       vec![
         Token::Symbol("sum".into()),
         Token::Subsup("_".into()),
@@ -383,7 +386,7 @@ mod tests {
   fn simplifier() {
     let input = "abra   + 12r_0";
     assert_eq!(
-      tokenize(&input),
+      tokenize(input, vec![]),
       vec![
         raw("a"),
         raw("b"),
@@ -398,5 +401,17 @@ mod tests {
         raw("0")
       ]
     );
+  }
+
+  #[test]
+  fn add_custom_brackets_function() {
+    assert_eq!(
+      tokenize("fgcdg", vec!["f", "g"]),
+      vec![
+        Token::BracketFunction("f".into()),
+        Token::Function("gcd".into(), 2),
+        Token::BracketFunction("g".into()),
+      ]
+    )
   }
 }

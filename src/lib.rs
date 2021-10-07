@@ -12,7 +12,7 @@ pub enum OutputFormat {
 
 #[wasm_bindgen]
 pub fn convert(input: String, _output_format: OutputFormat) -> String {
-  let tokens = tokens::tokenize(&input);
+  let tokens = tokens::tokenize(&input, todo!());
   let _tree = parse::parse(tokens);
   unimplemented!()
 }
