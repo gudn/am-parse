@@ -786,4 +786,36 @@ mod tests {
       ])
     );
   }
+
+  #[test]
+  fn parse_complex_expression() {
+    assert_eq!(
+      ptok("sum_ i=1 ^n i^3 = (n(n+1) /2) ^2"),
+      seq(vec![
+        sup(
+          Some(sub(
+            Some(symbol("sum")),
+            Some(seq(vec![raw("i"), symbol("="), raw("1")]))
+          )),
+          Some(raw("n"))
+        ),
+        sup(Some(raw("i")), Some(raw("3"))),
+        symbol("="),
+        sup(
+          Some(bracketed(
+            "(",
+            Some(")"),
+            frac(
+              Some(seq(vec![
+                raw("n"),
+                bracketed("(", Some(")"), seq(vec![raw("n"), symbol("+"), raw("1")])),
+              ])),
+              Some(raw("2"))
+            )
+          )),
+          Some(raw("2"))
+        )
+      ])
+    );
+  }
 }
