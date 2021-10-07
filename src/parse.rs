@@ -14,7 +14,7 @@ fn flatten(seq: LinkedList<Expression>) -> LinkedList<Expression> {
 }
 
 fn skip_whitespace(seq: &mut LinkedList<Expression>) {
-  while let Some(Expression::Token(Token::Whitespace)) = seq.front() {
+  if let Some(Expression::Token(Token::Whitespace)) = seq.front() {
     seq.pop_front();
   }
 }
