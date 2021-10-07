@@ -61,9 +61,10 @@ pub enum Expression {
 
 impl From<LinkedList<Expression>> for Expression {
   fn from(mut value: LinkedList<Expression>) -> Expression {
-    match value.len() {
-      1 => value.pop_front().unwrap(),
-      _ => Expression::Sequence(value),
+    if value.len() == 1 {
+      value.pop_front().unwrap()
+    } else {
+      Expression::Sequence(value)
     }
   }
 }
@@ -165,7 +166,85 @@ impl Expression {
             Expression::parse_brackets(left, right, items)
           }
           Token::RightBracket(_) => Expression::parse_one(seq),
-          Token::BracketFunction(_) => todo!(),
+          Token::BracketFunction(func) => {
+            let mut extra = Vec::new();
+            loop {
+              match seq.front() {
+                Some(&Expression::Token(ref token)) => match token {
+                  Token::Symbol(op) if op == "'" => {
+                    let next = Expression::parse_one(seq);
+                    if let Some(next) = next {
+                      extra.push(next);
+                    } else {
+                      break;
+                    }
+                  }
+                  Token::Subsup(_) => {
+                    let next = Expression::parse_one(seq);
+                    if let Some(next) = next {
+                      extra.push(next);
+                    } else {
+                      break;
+                    }
+                  }
+                  _ => break,
+                },
+                _ => break,
+              };
+            }
+            skip_whitespace(seq);
+            let arg = Expression::parse_next(seq);
+            if let Some(Expression::Bracketed { .. } | Expression::Matrix { .. }) = arg {
+              Some(Expression::Function {
+                func,
+                extra,
+                args: vec![arg],
+              })
+            } else if let Some(Expression::Sequence(inner)) = arg {
+              let mut args = inner;
+              while let Some(Expression::Symbol(ref symbol)) = args.back() {
+                if symbol == "," {
+                  skip_whitespace(seq);
+                  match Expression::parse_next(seq) {
+                    Some(Expression::Sequence(mut inner)) => args.append(&mut inner),
+                    Some(expr) => args.push_back(expr),
+                    None => break,
+                  }
+                } else {
+                  break;
+                }
+              }
+              Some(Expression::Function {
+                func,
+                extra,
+                args: vec![Some(Expression::Bracketed {
+                  left: "(".into(),
+                  right: Some(")".into()),
+                  inner: Box::new(flatten(args).into()),
+                })],
+              })
+            } else if let Some(expr) = arg {
+              Some(Expression::Function {
+                func,
+                extra,
+                args: vec![Some(Expression::Bracketed {
+                  left: "(".into(),
+                  right: Some(")".into()),
+                  inner: Box::new(expr),
+                })],
+              })
+            } else {
+              Some(Expression::Function {
+                func,
+                extra,
+                args: vec![Some(Expression::Bracketed {
+                  left: "(".into(),
+                  right: Some(")".into()),
+                  inner: Box::new(Expression::None),
+                })],
+              })
+            }
+          }
           Token::Function(func, argc) => {
             let mut extra = Vec::new();
             loop {
@@ -657,18 +736,54 @@ mod tests {
         right: None,
         items: vec![
           vec![raw("1")],
-          vec![
-            Expression::Matrix {
-              left: "(".into(),
-              right: None,
-              items: vec![
-                vec![raw("2")],
-                vec![raw("3"), raw("4")],
-              ]
-            }
-          ]
+          vec![Expression::Matrix {
+            left: "(".into(),
+            right: None,
+            items: vec![vec![raw("2")], vec![raw("3"), raw("4")],]
+          }]
         ]
       }
     )
+  }
+
+  #[test]
+  fn parse_bracketed_function() {
+    assert_eq!(
+      ptok("max a, b"),
+      func(
+        "max",
+        vec![Some(bracketed(
+          "(",
+          Some(")"),
+          seq(vec![raw("a"), symbol(","), raw("b")])
+        ))]
+      )
+    );
+    assert_eq!(
+      ptok("min (a, b"),
+      func(
+        "min",
+        vec![Some(bracketed(
+          "(",
+          None,
+          seq(vec![raw("a"), symbol(","), raw("b")])
+        ))]
+      )
+    );
+    assert_eq!(
+      ptok("min {1;2:} = 1"),
+      seq(vec![
+        func(
+          "min",
+          vec![Some(Expression::Matrix {
+            left: "{".into(),
+            right: Some(":}".into()),
+            items: vec![vec![raw("1")], vec![raw("2")]]
+          })]
+        ),
+        symbol("="),
+        raw("1")
+      ])
+    );
   }
 }
