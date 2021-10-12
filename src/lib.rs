@@ -1,9 +1,9 @@
 use wasm_bindgen::prelude::*;
 
-mod trie;
-mod tokens;
-mod render;
 mod parse;
+mod render;
+mod tokens;
+mod trie;
 
 #[wasm_bindgen]
 pub enum OutputFormat {
@@ -11,8 +11,12 @@ pub enum OutputFormat {
 }
 
 #[wasm_bindgen]
-pub fn convert(input: String, _output_format: OutputFormat) -> String {
-  let tokens = tokens::tokenize(&input, todo!());
-  let _tree = parse::parse(tokens);
-  unimplemented!()
+pub fn convert(
+  input: String,
+  output_format: OutputFormat,
+  custom_functions: String,
+) -> String {
+  let tokens = tokens::tokenize(&input, custom_functions.split(" ").collect());
+  let expr = parse::parse(tokens);
+  render::render(expr, output_format)
 }

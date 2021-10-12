@@ -13,9 +13,3 @@ pub enum Token {
   Subsup(String),
   Whitespace,
 }
-
-impl crate::render::Render for Token {
-  fn render(&self, _: crate::OutputFormat) -> String {
-    unimplemented!()
-  }
-}
