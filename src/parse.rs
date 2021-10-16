@@ -19,6 +19,13 @@ fn skip_whitespace(seq: &mut LinkedList<Expression>) {
   }
 }
 
+#[derive(Debug, Default, PartialEq, Eq)]
+pub struct FunctionExtra {
+  pub sup: Option<Box<Expression>>,
+  pub sub: Option<Box<Expression>>,
+  pub derivative_level: u32,
+}
+
 #[derive(Debug, PartialEq, Eq)]
 pub enum Expression {
   None,
@@ -44,7 +51,7 @@ pub enum Expression {
   },
   Function {
     func: String,
-    extra: Vec<Expression>,
+    extra: FunctionExtra,
     args: Vec<Option<Expression>>,
   },
   Bracketed {
@@ -70,6 +77,30 @@ impl From<LinkedList<Expression>> for Expression {
 }
 
 impl Expression {
+  fn parse_function_extra(seq: &mut LinkedList<Expression>) -> FunctionExtra {
+    let mut extra = FunctionExtra::default();
+    loop {
+      match seq.front() {
+        Some(&Expression::Token(ref token)) => match token {
+          Token::Symbol(op) if extra.sup.is_none() && op == "'" => {
+            extra.derivative_level += 1;
+            seq.pop_front();
+          }
+          Token::Subsup(op) if extra.sub.is_none() && op == "_" => {
+            extra.sub = Expression::parse_one(seq).map(Box::new);
+          }
+          Token::Subsup(op) if extra.sup.is_none() && extra.derivative_level == 0 && op == "^" => {
+            extra.sup = Expression::parse_one(seq).map(Box::new);
+          }
+          _ => break,
+        },
+        _ => break,
+      };
+    }
+    skip_whitespace(seq);
+    extra
+  }
+
   /// Should return only one next item: function, subsup, fraction, bracket,
   /// text. On Whitespace token return None
   fn parse_one(seq: &mut LinkedList<Expression>) -> Option<Expression> {
@@ -167,32 +198,7 @@ impl Expression {
           }
           Token::RightBracket(_) => Expression::parse_one(seq),
           Token::BracketFunction(func) => {
-            let mut extra = Vec::new();
-            loop {
-              match seq.front() {
-                Some(&Expression::Token(ref token)) => match token {
-                  Token::Symbol(op) if op == "'" => {
-                    let next = Expression::parse_one(seq);
-                    if let Some(next) = next {
-                      extra.push(next);
-                    } else {
-                      break;
-                    }
-                  }
-                  Token::Subsup(_) => {
-                    let next = Expression::parse_one(seq);
-                    if let Some(next) = next {
-                      extra.push(next);
-                    } else {
-                      break;
-                    }
-                  }
-                  _ => break,
-                },
-                _ => break,
-              };
-            }
-            skip_whitespace(seq);
+            let extra = Expression::parse_function_extra(seq);
             let arg = Expression::parse_next(seq);
             if let Some(Expression::Bracketed { .. } | Expression::Matrix { .. }) = arg {
               Some(Expression::Function {
@@ -246,32 +252,7 @@ impl Expression {
             }
           }
           Token::Function(func, argc) => {
-            let mut extra = Vec::new();
-            loop {
-              match seq.front() {
-                Some(&Expression::Token(ref token)) => match token {
-                  Token::Symbol(op) if op == "'" => {
-                    let next = Expression::parse_one(seq);
-                    if let Some(next) = next {
-                      extra.push(next);
-                    } else {
-                      break;
-                    }
-                  }
-                  Token::Subsup(_) => {
-                    let next = Expression::parse_one(seq);
-                    if let Some(next) = next {
-                      extra.push(next);
-                    } else {
-                      break;
-                    }
-                  }
-                  _ => break,
-                },
-                _ => break,
-              };
-            }
-            skip_whitespace(seq);
+            let extra = Expression::parse_function_extra(seq);
             let args: Vec<Option<Expression>> =
               (0..argc).map(|_| Expression::parse_next(seq)).collect();
             Some(Expression::Function { func, args, extra })
