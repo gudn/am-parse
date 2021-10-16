@@ -93,6 +93,7 @@ vv
 nn
 uu
 +-
+-+
 [operator]
 =
 !=
@@ -100,6 +101,8 @@ uu
 >
 <=
 >=
+<<
+>>
 in
 !in
 sub
@@ -109,8 +112,6 @@ supe
 ==
 ~~
 [operator]
-and
-or
 =>
 <=>
 [subsup]
