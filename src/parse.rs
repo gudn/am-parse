@@ -549,6 +549,7 @@ mod tests {
     assert_eq!(pt("1/ 2bx"), frac("1", "2bx"));
     assert_eq!(pt("1/2bx"), frac("1", "2bx"));
     assert_eq!(pt("1 /2bx"), frac("1", "2bx"));
+    assert_eq!(pt("1 / 2"), frac("1", "2"));
     assert_eq!(pt("1 / 2bx"), frac("1", "2bx"));
     assert_eq!(
       pt(" / 2bx"),

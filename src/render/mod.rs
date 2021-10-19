@@ -44,6 +44,14 @@ impl LatexRenderer {
   fn clear_state(&mut self) {
     self.state = None;
   }
+
+  fn wrap(&mut self, expr: Expression) {
+    self.result.push('{');
+    self.clear_state();
+    self.render(expr);
+    self.result.push('}');
+    self.clear_state();
+  }
 }
 
 impl Renderer for LatexRenderer {
@@ -55,19 +63,32 @@ impl Renderer for LatexRenderer {
       }
       Expression::Sequence(seq) => {
         if let Some(LatexState::NeedWrap) = self.state {
-          self.result.push('{');
-        }
-        for item in seq {
-          self.render(item)
-        }
-        if let Some(LatexState::NeedWrap) = self.state {
-          self.result.push('}');
-          self.clear_state();
+          self.wrap(Expression::Sequence(seq))
+        } else {
+          for item in seq {
+            self.render(item)
+          }
         }
       }
       Expression::Raw(raw) => {
+        if let Some(LatexState::NeedWrap) = self.state {
+          if raw.len() == 1 {
+            if self
+              .result
+              .chars()
+              .last()
+              .map_or(false, |c| c.is_ascii_alphabetic())
+            { // HACK
+              self.set_state(LatexState::NeedSpace);
+            } else {
+              self.clear_state();
+            }
+          }
+        }
         if raw.is_empty() {
           self.render(Expression::None)
+        } else if let Some(LatexState::NeedWrap) = self.state {
+          self.wrap(Expression::Raw(raw));
         } else if raw
           .chars()
           .next()
@@ -75,91 +96,177 @@ impl Renderer for LatexRenderer {
         {
           match self.state {
             Some(LatexState::NeedSpace) => self.result.push_str(&format!(" {}", raw)),
-            Some(LatexState::NeedWrap) if raw.len() > 1 => {
-              self.result.push_str(&format!("{{{}}}", raw))
-            }
             _ => self.result.push_str(&raw),
           }
         } else {
-          match self.state {
-            Some(LatexState::NeedWrap) if raw.len() > 1 => {
-              self.result.push_str(&format!("{{{}}}", raw))
-            }
-            _ => self.result.push_str(&raw),
-          }
+          self.result.push_str(&raw);
         }
         self.clear_state()
       }
       Expression::Symbol(symbol) => {
-        let leaf = self.symbols.find_str(&symbol);
-        let value: String;
-        if let Some(val) = leaf.map(Trie::value).flatten() {
-          value = val.clone();
+        if let Some(LatexState::NeedWrap) = self.state {
+          self.wrap(Expression::Symbol(symbol));
         } else {
-          value = symbol;
-        }
-        if value.starts_with('\\') {
-          self.result.push_str(&value);
-        } else {
-          match self.state {
-            Some(LatexState::NeedSpace) => self.result.push_str(&format!(" {}", value)),
-            _ => self.result.push_str(&value),
+          let leaf = self.symbols.find_str(&symbol);
+          let value = if let Some(val) = leaf.map(Trie::value).flatten() {
+            val.clone()
+          } else {
+            symbol
+          };
+          if value.starts_with('\\') {
+            self.result.push_str(&value);
+          } else {
+            match self.state {
+              Some(LatexState::NeedSpace) => self.result.push_str(&format!(" {}", value)),
+              _ => self.result.push_str(&value),
+            }
+          }
+          if value
+            .chars()
+            .last()
+            .map_or(false, |c| c.is_ascii_alphabetic())
+          {
+            self.set_state(LatexState::NeedSpace)
+          } else {
+            self.clear_state()
           }
         }
-        if value
-          .chars()
-          .last()
-          .map_or(false, |c| c.is_ascii_alphabetic())
-        {
-          self.set_state(LatexState::NeedSpace)
+      }
+      Expression::Function {
+        func,
+        args,
+        mut extra,
+      } => {
+        if let Some(LatexState::NeedWrap) = self.state {
+          self.wrap(Expression::Function { func, args, extra });
         } else {
-          self.clear_state()
+          match func.as_str() {
+            "abs" => {
+              let arg = args
+                .into_iter()
+                .next()
+                .flatten()
+                .unwrap_or(Expression::None);
+              self.result.push_str("\\left\\lvert");
+              self.set_state(LatexState::NeedSpace);
+              self.render(arg);
+              self.result.push_str("\\right\\rvert");
+              self.set_state(LatexState::NeedSpace);
+            }
+            "floor" => {
+              let arg = args
+                .into_iter()
+                .next()
+                .flatten()
+                .unwrap_or(Expression::None);
+              self.result.push_str("\\left\\lfloor");
+              self.set_state(LatexState::NeedSpace);
+              self.render(arg);
+              self.result.push_str("\\right\\rfloor");
+              self.set_state(LatexState::NeedSpace);
+            }
+            "ceil" => {
+              let arg = args
+                .into_iter()
+                .next()
+                .flatten()
+                .unwrap_or(Expression::None);
+              self.result.push_str("\\left\\lceil");
+              self.set_state(LatexState::NeedSpace);
+              self.render(arg);
+              self.result.push_str("\\right\\rceil");
+              self.set_state(LatexState::NeedSpace);
+            }
+            "norm" => {
+              let arg = args
+                .into_iter()
+                .next()
+                .flatten()
+                .unwrap_or(Expression::None);
+              self.result.push_str("\\left\\lVert");
+              self.set_state(LatexState::NeedSpace);
+              self.render(arg);
+              self.result.push_str("\\right\\rVert");
+              self.set_state(LatexState::NeedSpace);
+            }
+            "root" => {
+              let mut args = args.into_iter().map(|opt| opt.unwrap_or(Expression::None));
+              self.result.push_str("\\sqrt[");
+              self.render(args.next().unwrap());
+              self.result.push_str("]{");
+              self.render(args.next().unwrap());
+              self.result.push_str("}");
+              self.clear_state();
+            }
+            "log" => {
+              let mut args = args.into_iter().map(|opt| opt.unwrap_or(Expression::None));
+              self.result.push_str("\\log_");
+              self.set_state(LatexState::NeedWrap);
+              self.render(args.next().unwrap());
+              self.set_state(LatexState::NeedWrap);
+              self.render(args.next().unwrap());
+            }
+            "gcd" | "lcm " => {
+              let mut args = args.into_iter().map(|opt| opt.unwrap_or(Expression::None));
+              self.result.push('\\');
+              self.result.push_str(&func);
+              self.result.push('{');
+              self.clear_state();
+              self.render(args.next().unwrap());
+              self.result.push(',');
+              self.clear_state();
+              self.render(args.next().unwrap());
+              self.result.push('}');
+              self.clear_state();
+            }
+            _ => {
+              let leaf = self.symbols.find_str(&func);
+              let value = if let Some(val) = leaf.map(Trie::value).flatten() {
+                val.clone()
+              } else {
+                func
+              };
+              if value.starts_with('\\') {
+                self.result.push_str(&value);
+              } else {
+                match self.state {
+                  Some(LatexState::NeedSpace) => self.result.push_str(&format!(" {}", value)),
+                  _ => self.result.push_str(&value),
+                }
+              }
+              if let Some(sub) = extra.sub {
+                if let Expression::Sub { sub, .. } = *sub {
+                  let sub = sub.unwrap_or_else(|| Box::new(Expression::None));
+                  self.result.push('_');
+                  self.set_state(LatexState::NeedWrap);
+                  self.render(*sub);
+                } else {
+                  panic!("expected Expression::Sub");
+                }
+              }
+              if let Some(sup) = extra.sup {
+                if let Expression::Sup { sup, .. } = *sup {
+                  let sup = sup.unwrap_or_else(|| Box::new(Expression::None));
+                  self.result.push('^');
+                  self.set_state(LatexState::NeedWrap);
+                  self.render(*sup);
+                } else {
+                  panic!("expected Expression::Sub");
+                }
+              } else {
+                while extra.derivative_level > 0 {
+                  extra.derivative_level -= 1;
+                  self.result.push('\'');
+                }
+              }
+              for arg in args {
+                self.set_state(LatexState::NeedWrap);
+                self.render(arg.unwrap_or(Expression::None));
+              }
+            }
+          }
         }
       }
-      Expression::Function { func, args, .. } => match func.as_str() {
-        "abs" => {
-          let arg = args.into_iter().next().flatten().unwrap_or(Expression::None);
-          self.result.push_str("\\left\\lvert");
-          self.set_state(LatexState::NeedSpace);
-          self.render(arg);
-          self.result.push_str("\\right\\rvert");
-          self.set_state(LatexState::NeedSpace);
-        },
-        "floor" => {
-          let arg = args.into_iter().next().flatten().unwrap_or(Expression::None);
-          self.result.push_str("\\left\\lfloor");
-          self.set_state(LatexState::NeedSpace);
-          self.render(arg);
-          self.result.push_str("\\right\\rfloor");
-          self.set_state(LatexState::NeedSpace);
-        },
-        "ceil" => {
-          let arg = args.into_iter().next().flatten().unwrap_or(Expression::None);
-          self.result.push_str("\\left\\lceil");
-          self.set_state(LatexState::NeedSpace);
-          self.render(arg);
-          self.result.push_str("\\right\\rceil");
-          self.set_state(LatexState::NeedSpace);
-        },
-        "norm" => {
-          let arg = args.into_iter().next().flatten().unwrap_or(Expression::None);
-          self.result.push_str("\\left\\lVert");
-          self.set_state(LatexState::NeedSpace);
-          self.render(arg);
-          self.result.push_str("\\right\\rVert");
-          self.set_state(LatexState::NeedSpace);
-        },
-        "root" => {
-          let mut args = args.into_iter().map(|opt| opt.unwrap_or(Expression::None));
-          self.result.push_str("\\sqrt[");
-          self.render(args.next().unwrap());
-          self.result.push_str("]{");
-          self.render(args.next().unwrap());
-          self.result.push_str("}");
-          self.clear_state();
-        },
-        _func => todo!(),
-      },
       Expression::Text { text, font } => {
         let font = font.unwrap_or("".into());
         self.result.push_str(&match font.as_str() {
@@ -173,8 +280,32 @@ impl Renderer for LatexRenderer {
         });
         self.clear_state()
       }
-      Expression::Sub { .. } => todo!(),
-      Expression::Sup { .. } => todo!(),
+      Expression::Sub { base, sub } => {
+        if let Some(LatexState::NeedWrap) = self.state {
+          self.wrap(Expression::Sub { base, sub });
+        } else {
+          let base = base.unwrap_or_else(|| Box::new(Expression::None));
+          let sub = sub.unwrap_or_else(|| Box::new(Expression::None));
+          self.set_state(LatexState::NeedWrap);
+          self.render(*base);
+          self.result.push('_');
+          self.set_state(LatexState::NeedWrap);
+          self.render(*sub);
+        }
+      }
+      Expression::Sup { base, sup } => {
+        if let Some(LatexState::NeedWrap) = self.state {
+          self.wrap(Expression::Sup { base, sup });
+        } else {
+          let base = base.unwrap_or_else(|| Box::new(Expression::None));
+          let sup = sup.unwrap_or_else(|| Box::new(Expression::None));
+          self.set_state(LatexState::NeedWrap);
+          self.render(*base);
+          self.result.push('^');
+          self.set_state(LatexState::NeedWrap);
+          self.render(*sup);
+        }
+      }
       Expression::Fraction {
         denominator,
         numerator,
@@ -191,37 +322,41 @@ impl Renderer for LatexRenderer {
         self.clear_state()
       }
       Expression::Bracketed { left, right, inner } => {
-        let right = right.unwrap_or(":}".into());
-        let left = self
-          .symbols
-          .find_str(&left)
-          .map(Trie::value)
-          .flatten()
-          .map(String::clone)
-          .unwrap_or(left);
-        let right = self
-          .symbols
-          .find_str(&right)
-          .map(Trie::value)
-          .flatten()
-          .map(String::clone)
-          .unwrap_or(right);
-        self.result.push_str(&left);
-        if left
-          .chars()
-          .last()
-          .map_or(false, |c| c.is_ascii_alphabetic())
-        {
-          self.set_state(LatexState::NeedSpace);
-        }
-        self.render(*inner);
-        self.result.push_str(&right);
-        if right
-          .chars()
-          .last()
-          .map_or(false, |c| c.is_ascii_alphabetic())
-        {
-          self.set_state(LatexState::NeedSpace);
+        if let Some(LatexState::NeedWrap) = self.state {
+          self.wrap(Expression::Bracketed { left, right, inner })
+        } else {
+          let right = right.unwrap_or(":}".into());
+          let left = self
+            .symbols
+            .find_str(&left)
+            .map(Trie::value)
+            .flatten()
+            .map(String::clone)
+            .unwrap_or(left);
+          let right = self
+            .symbols
+            .find_str(&right)
+            .map(Trie::value)
+            .flatten()
+            .map(String::clone)
+            .unwrap_or(right);
+          self.result.push_str(&left);
+          if left
+            .chars()
+            .last()
+            .map_or(false, |c| c.is_ascii_alphabetic())
+          {
+            self.set_state(LatexState::NeedSpace);
+          }
+          self.render(*inner);
+          self.result.push_str(&right);
+          if right
+            .chars()
+            .last()
+            .map_or(false, |c| c.is_ascii_alphabetic())
+          {
+            self.set_state(LatexState::NeedSpace);
+          }
         }
       }
       Expression::Matrix { .. } => todo!(),
@@ -256,18 +391,30 @@ mod latex_tests {
 
   #[test]
   fn one_plus_one() {
-    assert_eq!(lren("1+1"), "1+1".to_owned());
+    assert_eq!(lren("1+1"), "1+1");
   }
 
   #[test]
   fn simple_func() {
     assert_eq!(
       lren("f(x) = 2(x + 2)"),
-      "f\\left(x\\right)=2\\left(x+2\\right)".to_owned()
+      "f\\left(x\\right)=2\\left(x+2\\right)"
     );
-    assert_eq!(
-      lren("(:\"magic\""),
-      "\\left\\lang\\text{magic}\\right."
-    )
+    assert_eq!(lren("(:\"magic\""), "\\left\\lang\\text{magic}\\right.")
+  }
+
+  #[test]
+  fn simple_subsup() {
+    assert_eq!(lren("1^ 2+3"), "1^{2+3}");
+    assert_eq!(lren("1_2^3_2"), "{{1_2}^3}_2");
+    assert_eq!(lren("1/ 2 ^ 3"), "\\frac{1}{2}^3");
+    assert_eq!(lren("1 / 2^ 3"), "\\frac{1}{2^3}");
+  }
+
+  #[test]
+  fn some_funcs() {
+    assert_eq!(lren("sinx"), "\\sin x");
+    assert_eq!(lren("sin'x^2 = 2xcosx^2"), "\\sin'{x^2}=2x\\cos{x^2}");
+    assert_eq!(lren("cos abra / 2"), "\\frac{\\cos{abra}}{2}");
   }
 }
