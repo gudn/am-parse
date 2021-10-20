@@ -493,4 +493,9 @@ mod latex_tests {
       "\\left(\\begin{matrix}x=5\\\\x=6\\end{matrix}\\right\\rang"
     );
   }
+
+  #[test]
+  fn blabla() {
+    assert_eq!(lren("blabla"), "blabla");
+  }
 }
