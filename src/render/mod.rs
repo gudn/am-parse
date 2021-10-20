@@ -78,7 +78,8 @@ impl Renderer for LatexRenderer {
               .chars()
               .last()
               .map_or(false, |c| c.is_ascii_alphabetic())
-            { // HACK
+            {
+              // HACK
               self.set_state(LatexState::NeedSpace);
             } else {
               self.clear_state();
@@ -359,7 +360,73 @@ impl Renderer for LatexRenderer {
           }
         }
       }
-      Expression::Matrix { .. } => todo!(),
+      Expression::Matrix { left, right, items } => {
+        let render_row = |this: &mut LatexRenderer, row: Vec<Expression>| {
+          let mut row = row.into_iter();
+          if let Some(first) = row.next() {
+            this.render(first);
+          }
+          for elem in row {
+            this.result.push('&');
+            this.render(elem);
+          }
+        };
+        let render_items = |this: &mut LatexRenderer| {
+          let mut rows = items.into_iter();
+          if let Some(first) = rows.next() {
+            render_row(this, first);
+          }
+          for row in rows {
+            this.result.push_str("\\\\");
+            render_row(this, row);
+          }
+        };
+        let right = right.unwrap_or_else(|| ":}".into());
+        match (left.as_str(), right.as_str()) {
+          ("(", ")") => {
+            self.result.push_str("\\begin{pmatrix}");
+            render_items(self);
+            self.result.push_str("\\end{pmatrix}");
+          }
+          ("[", "]") => {
+            self.result.push_str("\\begin{bmatrix}");
+            render_items(self);
+            self.result.push_str("\\end{bmatrix}");
+          }
+          ("{", "}") => {
+            self.result.push_str("\\begin{Bmatrix}");
+            render_items(self);
+            self.result.push_str("\\end{Bmatrix}");
+          }
+          ("{", ":}") => {
+            self.result.push_str("\\begin{cases}");
+            render_items(self);
+            self.result.push_str("\\end{cases}");
+          }
+          ("{:", "}") => {
+            self.result.push_str("\\begin{rcases}");
+            render_items(self);
+            self.result.push_str("\\end{rcases}");
+          }
+          ("|:", ":|") => {
+            self.result.push_str("\\begin{vmatrix}");
+            render_items(self);
+            self.result.push_str("\\end{vmatrix}");
+          }
+          ("{:", ":}") => {
+            self.result.push_str("\\begin{matrix}");
+            render_items(self);
+            self.result.push_str("\\end{matrix}");
+          }
+          (_, _) => {
+            self.render(Expression::Symbol(left));
+            self.result.push_str("\\begin{matrix}");
+            render_items(self);
+            self.result.push_str("\\end{matrix}");
+            self.render(Expression::Symbol(right));
+          }
+        }
+      }
       Expression::Token(_) => panic!("unexpected token in parsed expression"),
     }
   }
@@ -416,5 +483,14 @@ mod latex_tests {
     assert_eq!(lren("sinx"), "\\sin x");
     assert_eq!(lren("sin'x^2 = 2xcosx^2"), "\\sin'{x^2}=2x\\cos{x^2}");
     assert_eq!(lren("cos abra / 2"), "\\frac{\\cos{abra}}{2}");
+  }
+
+  #[test]
+  fn simple_cases() {
+    assert_eq!(lren("{x=5;x=6:}"), "\\begin{cases}x=5\\\\x=6\\end{cases}");
+    assert_eq!(
+      lren("(x=5;x=6:)"),
+      "\\left(\\begin{matrix}x=5\\\\x=6\\end{matrix}\\right\\rang"
+    );
   }
 }
