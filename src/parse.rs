@@ -355,7 +355,17 @@ impl Expression {
           }
           Expression::Sequence(mut inner) => {
             let front = inner.pop_front();
-            if let Some(Expression::Sub { base: None, sub }) = front {
+            if let Some(Expression::Fraction {
+              numerator: None,
+              denominator,
+            }) = front
+            {
+              let back = result.pop_back().or(Some(Expression::None));
+              inner.push_front(Expression::Fraction {
+                denominator,
+                numerator: back.map(Box::new),
+              })
+            } else if let Some(Expression::Sub { base: None, sub }) = front {
               let back = result.pop_back().or(Some(Expression::None));
               inner.push_front(Expression::Sub {
                 base: back.map(Box::new),
@@ -685,15 +695,15 @@ mod tests {
 
   #[test]
   fn parse_complex_expression() {
-    assert_eq!(pt("sum_ i=1 ^n i^3 = (n(n+1) /2) ^2"), seq(vec![
-      sup(
-        Some("sum_ i=1"),
-        Some("n"),
-      ),
-      sup(Some("i"), Some("3")),
-      symbol("="),
-      sup(Some("(n(n+1) /2)"), Some("2"))
-    ]));
+    assert_eq!(
+      pt("sum_ i=1 ^n i^3 = (n(n+1) /2) ^2"),
+      seq(vec![
+        sup(Some("sum_ i=1"), Some("n"),),
+        sup(Some("i"), Some("3")),
+        symbol("="),
+        sup(Some("(n(n+1) /2)"), Some("2"))
+      ])
+    );
     assert_eq!(pt("sum_ i=1"), sub(Some("sum"), Some("i=1")));
     assert_eq!(pt("n(n+1) /2"), frac("n(n+1)", "2"));
   }
@@ -719,6 +729,14 @@ mod tests {
         symbol("-"),
         func("sin", vec!["x"], ""),
       ])
+    );
+  }
+
+  #[test]
+  fn parse_fractions_with_supsub() {
+    assert_eq!(
+      pt("1+2 /(x+1)^6 ="),
+      seq(vec![frac("1+2", "(x+1)^6"), symbol("="),])
     );
   }
 }
