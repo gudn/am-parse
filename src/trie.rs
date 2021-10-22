@@ -21,10 +21,7 @@ impl<T> Trie<T> {
 
   fn find_or_create<'a>(curr: &'a mut Trie<T>, mut chars: Chars) -> &'a mut Trie<T> {
     if let Some(c) = chars.next() {
-      if !curr.children.contains_key(&c) {
-        curr.children.insert(c, Trie::new());
-      }
-      let child = curr.children.get_mut(&c).unwrap();
+      let child = curr.children.entry(c).or_insert_with(Trie::new);
       Trie::find_or_create(child, chars)
     } else {
       curr
@@ -40,7 +37,7 @@ impl<T> Trie<T> {
     for c in key.chars() {
       curr = curr.find(c)?;
     }
-    Some(&curr)
+    Some(curr)
   }
 
   pub fn is_value(&self) -> bool {

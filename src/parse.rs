@@ -79,21 +79,24 @@ impl From<LinkedList<Expression>> for Expression {
 impl Expression {
   fn parse_function_extra(seq: &mut LinkedList<Expression>) -> FunctionExtra {
     let mut extra = FunctionExtra::default();
-    loop {
-      match seq.front() {
-        Some(&Expression::Token(ref token)) => match token {
-          Token::Symbol(op) if extra.sup.is_none() && op == "'" => {
-            extra.derivative_level += 1;
-            seq.pop_front();
-          }
-          Token::Subsup(op) if extra.sub.is_none() && op == "_" => {
-            extra.sub = Expression::parse_one(seq).map(Box::new);
-          }
-          Token::Subsup(op) if extra.sup.is_none() && extra.derivative_level == 0 && op == "^" => {
-            extra.sup = Expression::parse_one(seq).map(Box::new);
-          }
-          _ => break,
-        },
+    while let Some(expr) = seq.front() {
+      match expr {
+        Expression::Token(Token::Symbol(ref op)) if extra.sup.is_none() && op == "'" => {
+          extra.derivative_level += 1;
+          seq.pop_front();
+        }
+        Expression::Token(Token::Subsup(ref op)) if extra.sub.is_none() && op == "_" => {
+          extra.sub = Expression::parse_one(seq).map(Box::new);
+        }
+        Expression::Token(Token::Symbol(ref op)) if extra.sup.is_none() && op == "'" => {
+          extra.derivative_level += 1;
+          seq.pop_front();
+        }
+        Expression::Token(Token::Subsup(ref op))
+          if extra.sup.is_none() && extra.derivative_level == 0 && op == "^" =>
+        {
+          extra.sup = Expression::parse_one(seq).map(Box::new);
+        }
         _ => break,
       };
     }

@@ -26,8 +26,8 @@ impl LatexRenderer {
       let mut line = line.split(" := ");
       let key = line.next();
       let value = line.next();
-      if key.is_some() && value.is_some() {
-        symbols.insert(key.unwrap(), value.unwrap().to_owned())
+      if let (Some(key), Some(value)) = (key, value) {
+        symbols.insert(key, value.into());
       }
     }
     LatexRenderer {
@@ -196,7 +196,7 @@ impl Renderer for LatexRenderer {
               self.render(args.next().unwrap());
               self.result.push_str("]{");
               self.render(args.next().unwrap());
-              self.result.push_str("}");
+              self.result.push('}');
               self.clear_state();
             }
             "log" => {
@@ -269,7 +269,7 @@ impl Renderer for LatexRenderer {
         }
       }
       Expression::Text { text, font } => {
-        let font = font.unwrap_or("".into());
+        let font = font.unwrap_or_default();
         self.result.push_str(&match font.as_str() {
           "bb" => format!("\\textbf{{{}}}", text),
           "bbb" => format!("\\mathbb{{{}}}", text),
@@ -319,14 +319,14 @@ impl Renderer for LatexRenderer {
         if let Some(denominator) = denominator {
           self.render(*denominator);
         }
-        self.result.push_str("}");
+        self.result.push('}');
         self.clear_state()
       }
       Expression::Bracketed { left, right, inner } => {
         if let Some(LatexState::NeedWrap) = self.state {
           self.wrap(Expression::Bracketed { left, right, inner })
         } else {
-          let right = right.unwrap_or(":}".into());
+          let right = right.unwrap_or_else(|| ":}".into());
           let left = self
             .symbols
             .find_str(&left)

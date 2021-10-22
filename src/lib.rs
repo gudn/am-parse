@@ -15,7 +15,7 @@ pub fn convert(input: String, output_format: OutputFormat, custom_functions: Str
   let custom_functions = if custom_functions.is_empty() {
     Vec::new()
   } else {
-    custom_functions.split(" ").collect()
+    custom_functions.split(' ').collect()
   };
   let tokens = tokens::tokenize(&input, custom_functions);
   let expr = parse::parse(tokens);

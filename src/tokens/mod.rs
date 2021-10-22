@@ -116,21 +116,17 @@ fn match_symbol(input: &mut InputWrapper, symbols: &Trie<SymbolType>) -> Option<
     }
   }
   input.reset(mark);
-  if let Some(value) = last_match.value() {
-    Some(match *value {
-      SymbolType::BracketFunction => Token::BracketFunction(buffer),
-      SymbolType::Font => Token::Font(buffer),
-      SymbolType::Function(arg) => Token::Function(buffer, arg),
-      SymbolType::LeftBracket => Token::LeftBracket(buffer),
-      SymbolType::RightBracket => Token::RightBracket(buffer),
-      SymbolType::Symbol => Token::Symbol(buffer),
-      SymbolType::Operator => Token::Operator(buffer),
-      SymbolType::Delimiter => Token::Delimiter(buffer),
-      SymbolType::Subsup => Token::Subsup(buffer),
-    })
-  } else {
-    None
-  }
+  last_match.value().map(|value| match *value {
+    SymbolType::BracketFunction => Token::BracketFunction(buffer),
+    SymbolType::Font => Token::Font(buffer),
+    SymbolType::Function(arg) => Token::Function(buffer, arg),
+    SymbolType::LeftBracket => Token::LeftBracket(buffer),
+    SymbolType::RightBracket => Token::RightBracket(buffer),
+    SymbolType::Symbol => Token::Symbol(buffer),
+    SymbolType::Operator => Token::Operator(buffer),
+    SymbolType::Delimiter => Token::Delimiter(buffer),
+    SymbolType::Subsup => Token::Subsup(buffer),
+  })
 }
 
 struct Simplifier {
