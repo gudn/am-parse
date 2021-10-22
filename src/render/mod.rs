@@ -95,10 +95,10 @@ impl Renderer for LatexRenderer {
           .next()
           .map_or(false, |c| c.is_ascii_alphabetic())
         {
-          match self.state {
-            Some(LatexState::NeedSpace) => self.result.push_str(&format!(" {}", raw)),
-            _ => self.result.push_str(&raw),
+          if let Some(LatexState::NeedSpace) = self.state {
+            self.result.push(' ');
           }
+          self.result.push_str(&raw);
         } else {
           self.result.push_str(&raw);
         }
@@ -117,10 +117,10 @@ impl Renderer for LatexRenderer {
           if value.starts_with('\\') {
             self.result.push_str(&value);
           } else {
-            match self.state {
-              Some(LatexState::NeedSpace) => self.result.push_str(&format!(" {}", value)),
-              _ => self.result.push_str(&value),
+            if let Some(LatexState::NeedSpace) = self.state {
+              self.result.push(' ');
             }
+            self.result.push_str(&value);
           }
           if value
             .chars()
@@ -230,10 +230,10 @@ impl Renderer for LatexRenderer {
               if value.starts_with('\\') {
                 self.result.push_str(&value);
               } else {
-                match self.state {
-                  Some(LatexState::NeedSpace) => self.result.push_str(&format!(" {}", value)),
-                  _ => self.result.push_str(&value),
+                if let Some(LatexState::NeedSpace) = self.state {
+                  self.result.push(' ');
                 }
+                self.result.push_str(&value);
               }
               if let Some(sub) = extra.sub {
                 if let Expression::Sub { sub, .. } = *sub {
@@ -270,15 +270,19 @@ impl Renderer for LatexRenderer {
       }
       Expression::Text { text, font } => {
         let font = font.unwrap_or_default();
-        self.result.push_str(&match font.as_str() {
-          "bb" => format!("\\textbf{{{}}}", text),
-          "bbb" => format!("\\mathbb{{{}}}", text),
-          "cc" => format!("\\mathcal{{{}}}", text),
-          "tt" => format!("\\texttt{{{}}}", text),
-          "fr" => format!("\\mathfrak{{{}}}", text),
-          "sf" => format!("\\textsf{{{}}}", text),
-          _ => format!("\\text{{{}}}", text),
+        self.result.push_str(match font.as_str() {
+          "bb" => "\\mathbf{{",
+          "bbb" => "\\mathbb{{",
+          "cc" => "\\mathcal{{",
+          "tt" => "\\mathtt{{",
+          "fr" => "\\mathfrak{{",
+          "sf" => "\\mathsf{{",
+          _ => "\\text{",
         });
+        self.result.push_str(&text);
+        self
+          .result
+          .push_str(if font.is_empty() { "}" } else { "}}" });
         self.clear_state()
       }
       Expression::Sub { base, sub } => {
