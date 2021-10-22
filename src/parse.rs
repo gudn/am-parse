@@ -97,7 +97,6 @@ impl Expression {
         _ => break,
       };
     }
-    skip_whitespace(seq);
     extra
   }
 
@@ -199,7 +198,12 @@ impl Expression {
           Token::RightBracket(_) => Expression::parse_one(seq),
           Token::BracketFunction(func) => {
             let extra = Expression::parse_function_extra(seq);
-            let arg = Expression::parse_next(seq);
+            let arg = if let Some(Expression::Token(Token::Whitespace)) = seq.front() {
+              skip_whitespace(seq);
+              Expression::parse_next(seq)
+            } else {
+              Expression::parse_one(seq)
+            };
             if let Some(Expression::Bracketed { .. } | Expression::Matrix { .. }) = arg {
               Some(Expression::Function {
                 func,
@@ -253,8 +257,16 @@ impl Expression {
           }
           Token::Function(func, argc) => {
             let extra = Expression::parse_function_extra(seq);
-            let args: Vec<Option<Expression>> =
-              (0..argc).map(|_| Expression::parse_next(seq)).collect();
+            let args: Vec<Option<Expression>> = (0..argc)
+              .map(|_| {
+                if let Some(Expression::Token(Token::Whitespace)) = seq.front() {
+                  skip_whitespace(seq);
+                  Expression::parse_next(seq)
+                } else {
+                  Expression::parse_one(seq)
+                }
+              })
+              .collect();
             Some(Expression::Function { func, args, extra })
           }
           Token::Subsup(op) => {
@@ -610,7 +622,7 @@ mod tests {
     assert_eq!(pt("sinx"), func("sin", vec!["x"], ""));
     assert_eq!(pt("sin x+y"), func("sin", vec!["x+y"], ""));
     assert_eq!(pt("root3 x^2"), func("root", vec!["3", "x^2"], ""));
-    assert_eq!(pt("sinx^2"), func("sin", vec!["x^2"], ""));
+    assert_eq!(pt("sin x^2"), func("sin", vec!["x^2"], ""));
     assert_eq!(pt("1+2 /sinx^2"), frac("1+2", "sinx^2"));
     assert_eq!(pt("sin'x"), func("sin", vec!["x"], "'"));
     assert_eq!(pt("gcd"), func("gcd", vec!["", ""], ""));
@@ -627,7 +639,7 @@ mod tests {
       }
     );
     assert_eq!(
-      pt("cos2x = cos^2x - sin^2x"),
+      pt("cos 2x = cos^2x - sin^2x"),
       seq(vec![
         func("cos", vec!["2x"], ""),
         symbol("="),
@@ -655,6 +667,10 @@ mod tests {
         symbol("="),
         raw("4")
       ])
+    );
+    assert_eq!(
+      pt("1/ln(3x) ="),
+      seq(vec![frac("1", "ln(3x)"), symbol("="),])
     );
   }
 

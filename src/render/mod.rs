@@ -481,7 +481,7 @@ mod latex_tests {
   #[test]
   fn some_funcs() {
     assert_eq!(lren("sinx"), "\\sin x");
-    assert_eq!(lren("sin'x^2 = 2xcosx^2"), "\\sin'{x^2}=2x\\cos{x^2}");
+    assert_eq!(lren("sin' x^2 = 2xcos x^2"), "\\sin'{x^2}=2x\\cos{x^2}");
     assert_eq!(lren("cos abra / 2"), "\\frac{\\cos{abra}}{2}");
   }
 
