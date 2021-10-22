@@ -1,9 +1,9 @@
-use std::collections::LinkedList;
+use std::collections::VecDeque;
 
 use crate::tokens::Token;
 
-fn flatten(seq: LinkedList<Expression>) -> LinkedList<Expression> {
-  let mut result = LinkedList::new();
+fn flatten(seq: VecDeque<Expression>) -> VecDeque<Expression> {
+  let mut result = VecDeque::new();
   for elem in seq {
     match elem {
       Expression::Sequence(inner) => result.append(&mut flatten(inner)),
@@ -13,7 +13,7 @@ fn flatten(seq: LinkedList<Expression>) -> LinkedList<Expression> {
   result
 }
 
-fn skip_whitespace(seq: &mut LinkedList<Expression>) {
+fn skip_whitespace(seq: &mut VecDeque<Expression>) {
   if let Some(Expression::Token(Token::Whitespace)) = seq.front() {
     seq.pop_front();
   }
@@ -29,7 +29,7 @@ pub struct FunctionExtra {
 #[derive(Debug, PartialEq, Eq)]
 pub enum Expression {
   None,
-  Sequence(LinkedList<Expression>),
+  Sequence(VecDeque<Expression>),
   Token(Token),
   Raw(String),
   Symbol(String),
@@ -66,8 +66,8 @@ pub enum Expression {
   },
 }
 
-impl From<LinkedList<Expression>> for Expression {
-  fn from(mut value: LinkedList<Expression>) -> Expression {
+impl From<VecDeque<Expression>> for Expression {
+  fn from(mut value: VecDeque<Expression>) -> Expression {
     if value.len() == 1 {
       value.pop_front().unwrap()
     } else {
@@ -77,7 +77,7 @@ impl From<LinkedList<Expression>> for Expression {
 }
 
 impl Expression {
-  fn parse_function_extra(seq: &mut LinkedList<Expression>) -> FunctionExtra {
+  fn parse_function_extra(seq: &mut VecDeque<Expression>) -> FunctionExtra {
     let mut extra = FunctionExtra::default();
     while let Some(expr) = seq.front() {
       match expr {
@@ -105,7 +105,7 @@ impl Expression {
 
   /// Should return only one next item: function, subsup, fraction, bracket,
   /// text. On Whitespace token return None
-  fn parse_one(seq: &mut LinkedList<Expression>) -> Option<Expression> {
+  fn parse_one(seq: &mut VecDeque<Expression>) -> Option<Expression> {
     if let Some(next) = seq.pop_front() {
       match next {
         Expression::Token(token) => match token {
@@ -301,8 +301,8 @@ impl Expression {
   }
 
   /// Should parse one hunk (between spaces)
-  fn parse_next(seq: &mut LinkedList<Expression>) -> Option<Expression> {
-    let mut result = LinkedList::new();
+  fn parse_next(seq: &mut VecDeque<Expression>) -> Option<Expression> {
+    let mut result = VecDeque::new();
     while let Some(expr) = Expression::parse_one(seq) {
       match expr {
         Expression::Fraction {
@@ -339,8 +339,8 @@ impl Expression {
     }
   }
 
-  fn parse_sequence(mut seq: LinkedList<Expression>) -> Expression {
-    let mut result = LinkedList::new();
+  fn parse_sequence(mut seq: VecDeque<Expression>) -> Expression {
+    let mut result = VecDeque::new();
     while !seq.is_empty() {
       if let Some(expr) = Expression::parse_next(&mut seq) {
         match expr {
@@ -422,7 +422,7 @@ impl Expression {
           inner: Box::new(Expression::None),
         }),
         _ => {
-          let mut inner = LinkedList::new();
+          let mut inner = VecDeque::new();
           for elem in items[0].drain(..) {
             match elem.parse() {
               Expression::Sequence(mut seq) => inner.append(&mut seq),
@@ -486,7 +486,7 @@ mod tests {
   }
 
   fn seq(values: Vec<Expression>) -> Expression {
-    let seq: LinkedList<_> = values.into_iter().collect();
+    let seq: VecDeque<_> = values.into_iter().collect();
     Expression::Sequence(seq)
   }
 
@@ -516,7 +516,7 @@ mod tests {
   }
 
   fn func(f: &str, args: Vec<&str>, extra: &str) -> Expression {
-    let mut extra: LinkedList<_> = tokenize(extra, vec![])
+    let mut extra: VecDeque<_> = tokenize(extra, vec![])
       .into_iter()
       .map(Expression::Token)
       .collect();
@@ -559,7 +559,7 @@ mod tests {
 
   #[test]
   fn parse_one_plus_one() {
-    let mut seq = LinkedList::new();
+    let mut seq = VecDeque::new();
     seq.push_back(raw("1"));
     seq.push_back(symbol("+"));
     seq.push_back(raw("1"));
