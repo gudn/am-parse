@@ -3,6 +3,8 @@ name = "am-parse"
 version = "0.99.0"
 authors = ["Daniil Novoselov <gudnmail@gmail.com>"]
 edition = "2021"
+license = "MIT"
+license-file = "LICENSE"
 
 [lib]
 crate-type = ["cdylib", "rlib"]
