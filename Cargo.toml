@@ -4,6 +4,8 @@ version = "0.99.0"
 authors = ["Daniil Novoselov <gudnmail@gmail.com>"]
 edition = "2021"
 license = "MIT"
+description = "Simple library for converting asciimath to other formats"
+readme = "README.md"
 
 [lib]
 crate-type = ["cdylib", "rlib"]
