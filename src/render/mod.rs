@@ -114,14 +114,12 @@ impl Renderer for LatexRenderer {
           } else {
             symbol
           };
-          if value.starts_with('\\') {
-            self.result.push_str(&value);
-          } else {
+          if !value.starts_with('\\') {
             if let Some(LatexState::NeedSpace) = self.state {
               self.result.push(' ');
             }
-            self.result.push_str(&value);
           }
+          self.result.push_str(&value);
           if value
             .chars()
             .last()
