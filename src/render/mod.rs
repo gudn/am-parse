@@ -220,6 +220,44 @@ impl Renderer for LatexRenderer {
               self.result.push('}');
               self.clear_state();
             }
+            "ubrace" => {
+              self.result.push_str("\\underbrace{");
+              if let Some(arg) = args.into_iter().next().flatten() {
+                self.clear_state();
+                self.render(arg);
+              }
+              self.result.push('}');
+              self.clear_state();
+              if let Some(sub) = extra.sub {
+                if let Expression::Sub { sub, .. } = *sub {
+                  let sub = sub.unwrap_or_else(|| Box::new(Expression::None));
+                  self.result.push('_');
+                  self.set_state(LatexState::NeedWrap);
+                  self.render(*sub);
+                } else {
+                  panic!("expected Expression::Sub");
+                }
+              }
+            }
+            "obrace" => {
+              self.result.push_str("\\overbrace{");
+              if let Some(arg) = args.into_iter().next().flatten() {
+                self.clear_state();
+                self.render(arg);
+              }
+              self.result.push('}');
+              self.clear_state();
+              if let Some(sup) = extra.sup {
+                if let Expression::Sup { sup, .. } = *sup {
+                  let sup = sup.unwrap_or_else(|| Box::new(Expression::None));
+                  self.result.push('^');
+                  self.set_state(LatexState::NeedWrap);
+                  self.render(*sup);
+                } else {
+                  panic!("expected Expression::Sub");
+                }
+              }
+            }
             _ => {
               let leaf = self.symbols.find_str(&func);
               let value = if let Some(val) = leaf.map(Trie::value).flatten() {
@@ -252,7 +290,7 @@ impl Renderer for LatexRenderer {
                   self.set_state(LatexState::NeedWrap);
                   self.render(*sup);
                 } else {
-                  panic!("expected Expression::Sub");
+                  panic!("expected Expression::Sup");
                 }
               } else {
                 while extra.derivative_level > 0 {
@@ -501,5 +539,11 @@ mod latex_tests {
   #[test]
   fn blabla() {
     assert_eq!(lren("blabla"), "blabla");
+  }
+
+  #[test]
+  fn overbrace_underbrace() {
+    assert_eq!(lren("obrace^y x"), "\\overbrace{x}^y");
+    assert_eq!(lren("ubrace_y x"), "\\underbrace{x}_y");
   }
 }
