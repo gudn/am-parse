@@ -1,22 +1,17 @@
-use wasm_bindgen::prelude::*;
-
 mod parse;
 mod render;
 mod tokens;
 mod trie;
 
-#[wasm_bindgen]
 pub enum OutputFormat {
   Latex,
 }
 
-#[wasm_bindgen]
-pub fn convert(input: String, output_format: OutputFormat, custom_functions: String) -> String {
-  let custom_functions = if custom_functions.is_empty() {
-    Vec::new()
-  } else {
-    custom_functions.split(' ').collect()
-  };
+pub fn convert(
+  input: String,
+  output_format: OutputFormat,
+  custom_functions: Vec<&str>,
+) -> String {
   let tokens = tokens::tokenize(&input, custom_functions);
   let expr = parse::parse(tokens);
   render::render(expr, output_format)
@@ -29,7 +24,7 @@ mod tests {
   #[test]
   fn blabla() {
     assert_eq!(
-      convert("blabla".into(), OutputFormat::Latex, "".into()),
+      convert("blabla".into(), OutputFormat::Latex, vec![]),
       "blabla".to_owned()
     );
   }

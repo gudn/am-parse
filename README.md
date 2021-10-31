@@ -1,3 +1,3 @@
 # am-parse
 
-Simple wasm library for converting asciimath to other formats
+Simple library for converting asciimath to other formats
