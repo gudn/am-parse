@@ -1,11 +1,12 @@
 [package]
 name = "am-parse"
-version = "0.99.0"
+version = "0.99.1"
 authors = ["Daniil Novoselov <gudnmail@gmail.com>"]
 edition = "2021"
 license = "MIT"
 description = "Simple library for converting asciimath to other formats"
 readme = "README.md"
+repository = 'https://github.com/gudn/am-parse'
 
 [lib]
 crate-type = ["cdylib", "rlib"]
