@@ -1,0 +1,52 @@
+version: '3'
+
+vars:
+  npm_repo: git@github.com:gudn/am-parse-js.git
+
+tasks:
+  clean:
+    desc: Clean target and pkg dirs
+    cmds:
+      - rm -rf target pkg
+  test:
+    desc: Run check and test
+    cmds:
+      - cargo check
+      - cargo test
+  publish:
+    decs: Publish to crates.io
+    deps: [test]
+    cmds:
+      - cargo publish
+  publish-js:
+    desc: Build and publish npm packages
+    deps: [test]
+    vars:
+      path:
+        sh: echo '/tmp/am-parse-js-'$(date +%s)
+      version:
+        sh: rg version Cargo.toml
+    cmds:
+    - git switch wasm
+    - git merge master --no-edit -X theirs
+    - git clone {{.npm_repo}} {{.path}}
+    - wasm-pack build --target bundler
+    - cd {{.path}} && git checkout -B bundler
+    - cmd: cd {{.path}} && git pull origin bundler --no-ff -X theirs --no-edit
+      ignore_error: true
+    - cp pkg/* {{.path}} && cd {{.path}} && git add . && git commit -m '{{.version}}' --allow-empty
+    - cd {{.path}} && git push -u origin bundler
+    - wasm-pack build --target nodejs
+    - cd {{.path}} && git checkout -B nodejs
+    - cmd: cd {{.path}} && git pull origin nodejs --no-ff -X theirs --no-edit
+      ignore_error: true
+    - cp pkg/* {{.path}} && cd {{.path}} && git add . && git commit -m '{{.version}}' --allow-empty
+    - cd {{.path}} && git push -u origin nodejs
+    - wasm-pack build --target web
+    - cd {{.path}} && git checkout -B web
+    - cmd: cd {{.path}} && git pull origin web --no-ff -X theirs --no-edit
+      ignore_error: true
+    - cp pkg/* {{.path}} && cd {{.path}} && git add . && git commit -m '{{.version}}' --allow-empty
+    - cd {{.path}} && git push -u origin web
+    - rm -rf {{.path}}
+    - git switch master
