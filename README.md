@@ -31,3 +31,4 @@ or expression in brackets.
 - `root 3 x /4` -> `\frac{\sqrt[3]{x}}{4}`
 - `sin 3*x` -> `\sin{3\cdot x}`, `sin3*x` -> `\sin3\cdot x`
 - `fr"text"`-> `\mathfrak{text}`
+- `ubrace^3 32` -> `\underbrace{32}^3`
