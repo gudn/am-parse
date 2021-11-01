@@ -1,0 +1,17 @@
+version: '3'
+
+tasks:
+  clean:
+    desc: Clean target and pkg dirs
+    cmds:
+      - rm -rf target pkg
+  test:
+    desc: Run check and test
+    cmds:
+      - cargo check
+      - cargo test
+  publish:
+    decs: Publish to crates.io
+    deps: [test]
+    cmds:
+      - cargo publish
