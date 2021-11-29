@@ -105,31 +105,31 @@ impl Renderer for LatexRenderer {
         self.clear_state()
       }
       Expression::Symbol(symbol) => {
-        if let Some(LatexState::NeedWrap) = self.state {
-          self.wrap(Expression::Symbol(symbol));
+        // if let Some(LatexState::NeedWrap) = self.state {
+        //   self.wrap(Expression::Symbol(symbol));
+        // } else {
+        let leaf = self.symbols.find_str(&symbol);
+        let value = if let Some(val) = leaf.map(Trie::value).flatten() {
+          val.clone()
         } else {
-          let leaf = self.symbols.find_str(&symbol);
-          let value = if let Some(val) = leaf.map(Trie::value).flatten() {
-            val.clone()
-          } else {
-            symbol
-          };
-          if !value.starts_with('\\') {
-            if let Some(LatexState::NeedSpace) = self.state {
-              self.result.push(' ');
-            }
-          }
-          self.result.push_str(&value);
-          if value
-            .chars()
-            .last()
-            .map_or(false, |c| c.is_ascii_alphabetic())
-          {
-            self.set_state(LatexState::NeedSpace)
-          } else {
-            self.clear_state()
+          symbol
+        };
+        if !value.starts_with('\\') {
+          if let Some(LatexState::NeedSpace) = self.state {
+            self.result.push(' ');
           }
         }
+        self.result.push_str(&value);
+        if value
+          .chars()
+          .last()
+          .map_or(false, |c| c.is_ascii_alphabetic())
+        {
+          self.set_state(LatexState::NeedSpace)
+        } else {
+          self.clear_state()
+        }
+        // }
       }
       Expression::Function {
         func,
@@ -343,8 +343,12 @@ impl Renderer for LatexRenderer {
         } else {
           let base = base.unwrap_or_else(|| Box::new(Expression::None));
           let sub = sub.unwrap_or_else(|| Box::new(Expression::None));
-          self.set_state(LatexState::NeedWrap);
-          self.render(*base);
+          if let Expression::Sup { .. } = *base {
+            self.render(*base);
+          } else {
+            self.set_state(LatexState::NeedWrap);
+            self.render(*base);
+          }
           self.result.push('_');
           self.set_state(LatexState::NeedWrap);
           self.render(*sub);
@@ -356,8 +360,12 @@ impl Renderer for LatexRenderer {
         } else {
           let base = base.unwrap_or_else(|| Box::new(Expression::None));
           let sup = sup.unwrap_or_else(|| Box::new(Expression::None));
-          self.set_state(LatexState::NeedWrap);
-          self.render(*base);
+          if let Expression::Sub { .. } = *base {
+            self.render(*base);
+          } else {
+            self.set_state(LatexState::NeedWrap);
+            self.render(*base);
+          }
           self.result.push('^');
           self.set_state(LatexState::NeedWrap);
           self.render(*sup);
@@ -529,7 +537,8 @@ mod latex_tests {
   #[test]
   fn simple_subsup() {
     assert_eq!(lren("1^ 2+3"), "1^{2+3}");
-    assert_eq!(lren("1_2^3_2"), "{{1_2}^3}_2");
+    assert_eq!(lren("1_2^ 3_2"), "1_2^{3_2}");
+    assert_eq!(lren("1_2_3"), "{1_2}_3");
     assert_eq!(lren("1/ 2 ^ 3"), "\\frac{1}{2}^3");
     assert_eq!(lren("1 / 2^ 3"), "\\frac{1}{2^3}");
   }
