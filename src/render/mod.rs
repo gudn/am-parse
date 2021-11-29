@@ -199,7 +199,23 @@ impl Renderer for LatexRenderer {
             }
             "log" => {
               let mut args = args.into_iter().map(|opt| opt.unwrap_or(Expression::None));
-              self.result.push_str("\\log_");
+              self.result.push_str("\\log");
+              if let Some(sup) = extra.sup {
+                if let Expression::Sup { sup, .. } = *sup {
+                  let sup = sup.unwrap_or_else(|| Box::new(Expression::None));
+                  self.result.push('^');
+                  self.set_state(LatexState::NeedWrap);
+                  self.render(*sup);
+                } else {
+                  panic!("expected Expression::Sup");
+                }
+              } else {
+                while extra.derivative_level > 0 {
+                  extra.derivative_level -= 1;
+                  self.result.push('\'');
+                }
+              }
+              self.result.push('_');
               self.set_state(LatexState::NeedWrap);
               self.render(args.next().unwrap());
               self.set_state(LatexState::NeedWrap);
