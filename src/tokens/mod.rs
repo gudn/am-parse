@@ -100,6 +100,7 @@ fn match_symbol(input: &mut InputWrapper, symbols: &Trie<SymbolType>) -> Option<
   let mut curr = symbols;
   let mut buffer = String::new();
   let mut mark = input.mark();
+  let start_mark = mark;
   while let Some(c) = input.peek() {
     if c == '\\' {
       break;
@@ -116,6 +117,8 @@ fn match_symbol(input: &mut InputWrapper, symbols: &Trie<SymbolType>) -> Option<
     }
   }
   input.reset(mark);
+  let bufsize = mark - start_mark;
+  buffer.drain(bufsize..);
   last_match.value().map(|value| match *value {
     SymbolType::BracketFunction => Token::BracketFunction(buffer),
     SymbolType::Font => Token::Font(buffer),
@@ -407,6 +410,17 @@ mod tests {
         Token::BracketFunction("f".into()),
         Token::Function("gcd".into(), 2),
         Token::BracketFunction("g".into()),
+      ]
+    )
+  }
+
+  #[test]
+  fn delt() {
+    assert_eq!(
+      tokenize("delt", vec![]),
+      vec![
+        Token::Function("del".into(), 1),
+        raw("t")
       ]
     )
   }
