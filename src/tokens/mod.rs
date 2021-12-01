@@ -5,7 +5,7 @@ mod wrapper;
 pub use token::Token;
 use wrapper::InputWrapper;
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug)]
 enum SymbolType {
   Font,
   BracketFunction,

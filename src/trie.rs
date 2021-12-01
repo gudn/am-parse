@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 use std::str::Chars;
 
+#[derive(Debug)]
 pub struct Trie<T> {
   value: Option<T>,
   children: HashMap<char, Trie<T>>,
