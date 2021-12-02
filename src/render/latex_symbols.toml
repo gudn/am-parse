@@ -56,12 +56,15 @@ setminus := \setminus
 xx := \times
 @ := \circ
 o+ := \oplus
+ox := \otimes
+o. := \odot
 ^^ := \land
 vv := \lor
 nn := \cap
 uu := \cup
 +- := \pm
 -+ := \mp
+prop := \propto
 != := \ne
 <= := \le
 >= := \ge
@@ -143,6 +146,7 @@ RR := \R
 ZZ := \Z
 AA := \forall
 EE := \exist
+bot := \bot
 uarr := \uarr
 darr := \darr
 rarr := \rarr

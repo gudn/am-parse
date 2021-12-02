@@ -88,12 +88,15 @@ setminus
 xx
 @
 o+
+ox
+o.
 ^^
 vv
 nn
 uu
 +-
 -+
+prop
 [operator]
 =
 !=
@@ -185,6 +188,7 @@ RR
 ZZ
 AA
 EE
+bot
 [symbol]
 uarr
 darr
