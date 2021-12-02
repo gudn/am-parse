@@ -120,6 +120,7 @@ prod := \prod
 vvv := \bigvee
 nnn := \bigcap
 uuu := \bigcup
+lim := \lim
 int := \int
 oint := \oint
 O/ := \empty

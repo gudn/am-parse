@@ -1,6 +1,6 @@
 [package]
 name = "am-parse"
-version = "0.99.4"
+version = "0.99.5"
 authors = ["Daniil Novoselov <gudnmail@gmail.com>"]
 edition = "2021"
 license = "MIT"
