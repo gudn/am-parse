@@ -418,10 +418,7 @@ mod tests {
   fn delt() {
     assert_eq!(
       tokenize("delt", vec![]),
-      vec![
-        Token::Function("del".into(), 1),
-        raw("t")
-      ]
+      vec![Token::Function("del".into(), 1), raw("t")]
     )
   }
 }

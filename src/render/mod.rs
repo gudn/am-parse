@@ -279,14 +279,11 @@ impl Renderer for LatexRenderer {
               } else {
                 func
               };
-              if value.starts_with('\\') {
-                self.result.push_str(&value);
-              } else {
-                if let Some(LatexState::NeedSpace) = self.state {
-                  self.result.push(' ');
-                }
-                self.result.push_str(&value);
+              match self.state {
+                Some(LatexState::NeedWrap) if value.starts_with('\\') => self.result.push(' '),
+                _ => {}
               }
+              self.result.push_str(&value);
               if let Some(sub) = extra.sub {
                 if let Expression::Sub { sub, .. } = *sub {
                   let sub = sub.unwrap_or_else(|| Box::new(Expression::None));
@@ -343,12 +340,13 @@ impl Renderer for LatexRenderer {
         } else {
           let base = base.unwrap_or_else(|| Box::new(Expression::None));
           let sub = sub.unwrap_or_else(|| Box::new(Expression::None));
-          if let Expression::Sup { .. } = *base {
-            self.render(*base);
-          } else {
-            self.set_state(LatexState::NeedWrap);
-            self.render(*base);
+          match *base {
+            Expression::Sup { .. } => {}
+            _ => {
+              self.set_state(LatexState::NeedWrap);
+            }
           }
+          self.render(*base);
           self.result.push('_');
           self.set_state(LatexState::NeedWrap);
           self.render(*sub);
@@ -360,12 +358,13 @@ impl Renderer for LatexRenderer {
         } else {
           let base = base.unwrap_or_else(|| Box::new(Expression::None));
           let sup = sup.unwrap_or_else(|| Box::new(Expression::None));
-          if let Expression::Sub { .. } = *base {
-            self.render(*base);
-          } else {
-            self.set_state(LatexState::NeedWrap);
-            self.render(*base);
+          match *base {
+            Expression::Sub { .. } => {}
+            _ => {
+              self.set_state(LatexState::NeedWrap);
+            }
           }
+          self.render(*base);
           self.result.push('^');
           self.set_state(LatexState::NeedWrap);
           self.render(*sup);
